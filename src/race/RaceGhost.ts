@@ -13,7 +13,7 @@ export class RaceGhost {
  best?:GhostRun;private frames:GhostFrame[]=[];private saved=false;private visual?:T.Object3D;private material=new T.MeshBasicMaterial({color:0x86e4ed,wireframe:true,transparent:true,opacity:.19,depthWrite:false});enabled=true;
  private aircraft:string;
  constructor(aircraft:string){this.aircraft=aircraft;try{this.best=parseGhost(localStorage.getItem(this.key));}catch{}}
- private get key(){return 'adriatic.ghost.point2.'+this.aircraft;}
+ private get key(){return 'adriatic.ghost.point4.'+this.aircraft;}
  reset(){this.frames=[];this.saved=false;if(this.visual)this.visual.visible=false;}
  record(t:number,position:T.Vector3,orientation:T.Quaternion,completed:boolean,sectors:readonly number[]){
   if(this.saved||t<0||t>3600)return;const last=this.frames.at(-1);

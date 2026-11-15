@@ -4,7 +4,7 @@ import {WeatherController,morningFogWindow} from '../src/rendering/WeatherConfig
 import {FlightJournal} from '../src/journey/FlightJournal.ts';import {coveCampSite} from '../src/world/CoveCamp.ts';import {storyStepTarget} from '../src/journey/StoryMissions.ts';import {nightApproach} from '../src/world/HarborNavigation.ts';
 
 test('10 percent horizontal reduction keeps island centres and three satellite mill houses outside the port',()=>{
- assert.equal(islands[0].rx,525*.9);assert.equal(islands[0].rz,450*.9);assert.equal(islands[1].rx,960*.9);assert.equal(islands[1].rz,650*.9);
+ assert.equal(islands[0].rx,525*.9);assert.equal(islands[0].rz,450*.9);assert.equal(islands[1].rx,864*Math.sqrt(.8));assert.equal(islands[1].rz,585*Math.sqrt(.8));
  assert.equal(islands[0].x,-2400);assert.equal(islands[1].z,4900);const town=buildSettlementLayout(islands[1]);assert.ok(town.houses.filter(p=>p.kind.startsWith('HouseMill')).length===3);
 });
 test('automatic morning fog is pre-sunrise, clears after sunrise, and manual fog remains available',()=>{

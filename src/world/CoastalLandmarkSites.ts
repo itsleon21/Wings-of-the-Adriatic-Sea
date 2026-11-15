@@ -19,7 +19,7 @@ function shore(d:IslandDefinition,a:number,inland:number,kind:'shipyard'|'fisher
 export const coastalLandmarkSites:CoastalLandmarkSite[]=[
  mill(islands[0],-.45,-.20,'base-mill'),
  mill(islands[1],-.57,-.31,'town-west-mill'),mill(islands[1],.45,-.12,'town-east-mill'),
- mill(islands[1],-.25,.05,'town-quay-mill'),mill(islands[1],.22,.04,'town-market-mill'),
+ mill(islands[1],-.34,.05,'town-quay-mill'),mill(islands[1],.22,.04,'town-market-mill'),
  mill(islands[1],-.469,-.53,'town-hill-mill'),mill(islands[1],.07777777777777757,-.20512820512820512,'town-lane-mill'),
  mill(islands[1],-.65,-.10,'town-headland-mill'),mill(islands[1],.68,-.20,'town-granary-mill'),
  shore(islands[0],-2.40,24,'shipyard','base-repair-slip',34),

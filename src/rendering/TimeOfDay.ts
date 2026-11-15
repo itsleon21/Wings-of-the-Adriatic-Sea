@@ -6,11 +6,14 @@ const wrap=(h:number)=>(h%24+24)%24;
 export function daylightAt(hour:number){
  const h=wrap(hour),elevation=Math.sin((h-6)/24*Math.PI*2),day=Math.max(0,Math.min(1,(elevation+.16)/.48)),nightness=1-Math.max(0,Math.min(1,(elevation+.14)/.20)),warm=(1-nightness)*(1-Math.max(0,elevation));
  const angle=(h-6)/24*Math.PI*2;const raw=[Math.cos(angle),elevation,.35] as const;
- const blend=Math.min(1,day/.18);const direction=[.35*(1-blend)+raw[0]*blend,.48*(1-blend)+Math.max(-.12,raw[1])*blend,-.65*(1-blend)+raw[2]*blend];
+ const moonAngle=(h-18)/24*Math.PI*2;
+ const moonDirection=[Math.cos(moonAngle),Math.sin(moonAngle),-.35] as const;
+ const blend=Math.min(1,day/.18);
+ const direction=[moonDirection[0]*(1-blend)+raw[0]*blend,Math.max(.04,moonDirection[1])*(1-blend)+Math.max(-.12,raw[1])*blend,moonDirection[2]*(1-blend)+raw[2]*blend];
  const sunset=(1-Math.cos(angle))/2;
  const color=[1,.91-warm*(.13+.18*sunset),.74-warm*(.32+.13*sunset)];
  const phase:TimeId=h<5||h>=21?'night':h<10?'morning':h<16?'noon':h<21?'dusk':'night';
- return{hour:h,sunset,solarElevation:elevation,phase,day,warm,nightness,direction,color,label:`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}`};
+ return{hour:h,sunset,solarElevation:elevation,moonDirection,phase,day,warm,nightness,direction,color,label:`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}`};
 }
 export type DaylightValues=ReturnType<typeof daylightAt>;
 export const dayCycleSeconds=24*60;

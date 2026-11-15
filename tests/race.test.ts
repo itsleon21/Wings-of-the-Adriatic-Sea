@@ -9,13 +9,17 @@ test('simultaneous start, ordered point-to-point gates, finish and clean retries
  const r=new RaceManager();r.update(3,new T.Vector3(),new T.Vector3());assert.equal(r.state,'RUNNING');r.update(1,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,1);cross(r,1);assert.equal(r.index,0);
  for(let i=0;i<raceCourse.length;i++)assert.equal(cross(r,i),true);assert.equal(r.state,'COMPLETED');assert.equal(r.index,raceCourse.length-1);assert.equal(r.lap,1);assert.equal(r.sectors.length,raceCourse.length);const elapsed=r.elapsed;r.update(100,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,elapsed);r.reset();assert.equal(r.state,'COUNTDOWN');assert.equal(r.elapsed,0);r.fail();assert.equal(cross(r,0),false);
 });
-test('race gate and connecting sea corridors stay clear of every island and reef',()=>{
- const route=[raceLaunch,...raceCourse.map(gate=>gate.position)];
+test('race visits every main island inside the chart and clears terrain along each airborne sector',()=>{
+ const stops=allLandforms.filter(d=>['coral','hotel','cove','pine','harbor','town','lighthouse'].includes(d.id));
+ for(const island of stops)assert.ok(raceCourse.some(p=>Math.hypot(p.position.x-island.x,p.position.z-island.z)<5),island.id);
+ const route=[raceLaunch,...raceCourse.map(g=>g.position)];
  for(let leg=1;leg<route.length;leg++){
-  const start=route[leg-1],end=route[leg],normal=new T.Vector3(end.z-start.z,0,start.x-end.x).normalize();
-  for(let sample=0;sample<=100;sample++)for(const offset of [-100,0,100]){
-   const point=start.clone().lerp(end,sample/100).addScaledVector(normal,offset);
-   for(const island of allLandforms)assert.ok(terrainHeight(island,point.x,point.z)<-3,`leg ${leg} intersects ${island.id} at sample ${sample}`);
+  const start=route[leg-1],end=route[leg];
+  for(let sample=0;sample<=100;sample++){
+   const p=start.clone().lerp(end,sample/100);
+   assert.ok(Math.abs(p.x)<5750&&Math.abs(p.z)<5750,'inside map');
+   // Departure starts on water and climbs through the first sector.
+   for(const island of allLandforms)assert.ok(terrainHeight(island,p.x,p.z)+10<p.y||leg===1&&terrainHeight(island,p.x,p.z)<-3,'terrain clearance '+island.id);
   }
  }
 });

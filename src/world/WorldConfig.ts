@@ -1,8 +1,8 @@
 export interface IslandDefinition { id:string; name:string; x:number; z:number; rx:number; rz:number; height:number; seed:number; bay:boolean; canonical?:boolean }
 const islandTemplates:IslandDefinition[] = [
  {id:'harbor',name:'港口基地',x:-2400,z:1500,rx:472.5,rz:405,height:145,seed:13,bay:true},
- {id:'town',name:'风车小镇',x:400,z:-2600,rx:864,rz:585,height:126,seed:37,bay:true},
- {id:'lighthouse',name:'灯塔岛',x:3000,z:120,rx:310,rz:350,height:130,seed:63,bay:false},
+ {id:'town',name:'风车小镇',x:400,z:-2600,rx:864*Math.sqrt(.8),rz:585*Math.sqrt(.8),height:126,seed:37,bay:true},
+ {id:'lighthouse',name:'灯塔岛',x:3000,z:120,rx:310*Math.sqrt(.9),rz:350*Math.sqrt(.9),height:130,seed:63,bay:false},
  {id:'cove',name:'隐秘海湾',x:-2900,z:-2500,rx:400,rz:300,height:120,seed:81,bay:true},
  {id:'pine',name:'松林岛',x:-250,z:4000,rx:410*Math.SQRT1_2,rz:380*Math.SQRT1_2,height:160,seed:107,bay:false},
  {id:'coral',name:'珊瑚群岛',x:3200,z:3800,rx:450,rz:370,height:24,seed:151,bay:false},
@@ -10,7 +10,7 @@ const islandTemplates:IslandDefinition[] = [
 /** Fixed sea seed gives reproducible, irregular spacing while preserving the harbour runway. */
 export function createArchipelago(seed:number):IslandDefinition[]{
  // Keep the published chart stable when refining an island's footprint.
- if(seed===8033){const centres=[[-2400,1500],[-2225,4900],[3006,4405],[819,-3232],[136,-545],[-4186,-599]];return islandTemplates.map((d,i)=>({...d,x:centres[i][0],z:centres[i][1]}));}
+ if(seed===8033){const centres=[[-2400,1500],[-2225,4900],[3006,4005],[819,-3232],[136,-545],[-4186,-599]];return islandTemplates.map((d,i)=>({...d,x:centres[i][0],z:centres[i][1]}));}
  const rng=random(seed);
  for(let restart=0;restart<200;restart++){
   const result=[{...islandTemplates[0]}];let failed=false;
@@ -34,7 +34,7 @@ export const islands=createArchipelago(SeaSeed);
 export const reefs:IslandDefinition[]=[
  {id:'reef-west',name:'西风礁',x:-5200,z:-4200,rx:98,rz:72,height:19,seed:231,bay:false},
  {id:'reef-east',name:'琥珀礁',x:4600,z:-4500,rx:76,rz:114,height:24,seed:419,bay:false},
- {id:'reef-channel',name:'双岩礁',x:4800,z:2600,rx:112,rz:65,height:17,seed:587,bay:false},
+ {id:'reef-channel',name:'双岩礁',x:4720,z:-4400,rx:112,rz:65,height:17,seed:587,bay:false},
 ];
 const coral=islands.find(d=>d.id==='coral')!;
 /** Garden hotel lies northeast (east +X, north −Z) of Coral Island. */

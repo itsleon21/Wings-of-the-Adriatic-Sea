@@ -1,6 +1,20 @@
+export interface TrialResult{takeoff?:{seconds:number;distance:number};climb?:number;maximum:number;sink?:number}
+export const trialKey=(aircraft:string,configuration:string)=>'adriatic.trial.v2.'+aircraft+'.'+configuration;
+export function readTrial(aircraft:string,configuration:string):TrialResult|undefined{
+ try{
+  const value=JSON.parse(localStorage.getItem(trialKey(aircraft,configuration))??'null');
+  if(!value||!Number.isFinite(value.maximum)||value.maximum<0)return;
+  if(value.takeoff&&(!Number.isFinite(value.takeoff.distance)||!Number.isFinite(value.takeoff.seconds)))return;
+  for(const key of ['climb','sink'])if(value[key]!==undefined&&!Number.isFinite(value[key]))return;
+  return value;
+ }catch{return;}
+}
 export class TrialTelemetry{
- private elapsed=0;private running=false;private run=0;private takeoff?:{seconds:number;distance:number};private climb?:number;private maximum=0;private sink?:number;private previousAir=false;private previous?:{x:number;z:number};private node:HTMLElement;
- constructor(privateLabel:string){this.node=document.createElement('div');this.node.className='trial-readout';this.node.dataset.label=privateLabel;this.node.textContent=privateLabel+' · 按住 Shift 开始滑跑，计时从飞机移动后开始';document.querySelector('.trial-banner')?.append(this.node);}
- update(dt:number,p:{x:number;y:number;z:number},airborne:boolean,speed:number,vertical:number){if(dt<=0||dt>.2)return;if(speed>1)this.running=true;if(!this.running)return;this.elapsed+=dt;this.maximum=Math.max(this.maximum,speed*3.6);if(!this.takeoff&&this.previous)this.run+=Math.hypot(p.x-this.previous.x,p.z-this.previous.z);if(airborne&&!this.previousAir&&!this.takeoff)this.takeoff={seconds:this.elapsed,distance:this.run};if(airborne&&p.y>=100&&this.climb===undefined)this.climb=this.elapsed;if(!airborne&&this.previousAir)this.sink=Math.abs(vertical);this.previousAir=airborne;this.previous={x:p.x,z:p.z};this.node.textContent=`${this.node.dataset.label} · 起飞 ${this.takeoff?this.takeoff.distance.toFixed(0)+' m / '+this.takeoff.seconds.toFixed(1)+' s':'滑跑中'} · 100m爬升 ${this.climb?.toFixed(1)??'—'}s · 最高 ${this.maximum.toFixed(0)} km/h · 着水垂速 ${this.sink?.toFixed(1)??'—'} m/s`;}
- reset(){this.running=false;this.elapsed=0;this.run=0;this.takeoff=undefined;this.climb=undefined;this.maximum=0;this.sink=undefined;this.previousAir=false;this.previous=undefined;}
+ private elapsed=0;private running=false;private run=0;private takeoff?:{seconds:number;distance:number};private climb?:number;private maximum=0;private sink?:number;private previousAir=false;private previous?:{x:number;z:number};private node:HTMLElement;private saveTime=0;
+ constructor(privateLabel:string,private aircraft='redwing',private configuration='stock'){this.node=document.createElement('div');this.node.className='trial-readout';this.node.dataset.label=privateLabel;this.node.textContent=privateLabel+' · 按住 Shift 开始滑跑，计时从飞机移动后开始';document.querySelector('.trial-banner')?.append(this.node);}
+ update(dt:number,p:{x:number;y:number;z:number},airborne:boolean,speed:number,vertical:number){if(dt<=0||dt>.2)return;if(speed>1)this.running=true;if(!this.running)return;this.elapsed+=dt;this.maximum=Math.max(this.maximum,speed*3.6);if(!this.takeoff&&this.previous)this.run+=Math.hypot(p.x-this.previous.x,p.z-this.previous.z);if(airborne&&!this.previousAir&&!this.takeoff)this.takeoff={seconds:this.elapsed,distance:this.run};if(airborne&&p.y>=100&&this.climb===undefined)this.climb=this.elapsed;if(!airborne&&this.previousAir)this.sink=Math.abs(vertical);this.previousAir=airborne;this.previous={x:p.x,z:p.z};
+ this.saveTime+=dt;
+ if(this.saveTime>=1){this.saveTime=0;try{localStorage.setItem(trialKey(this.aircraft,this.configuration),JSON.stringify({takeoff:this.takeoff,climb:this.climb,maximum:this.maximum,sink:this.sink}));}catch{}}
+ this.node.textContent=`${this.node.dataset.label} · 起飞 ${this.takeoff?this.takeoff.distance.toFixed(0)+' m / '+this.takeoff.seconds.toFixed(1)+' s':'滑跑中'} · 100m爬升 ${this.climb?.toFixed(1)??'—'}s · 最高 ${this.maximum.toFixed(0)} km/h · 着水垂速 ${this.sink?.toFixed(1)??'—'} m/s`;}
+ reset(){this.saveTime=0;this.running=false;this.elapsed=0;this.run=0;this.takeoff=undefined;this.climb=undefined;this.maximum=0;this.sink=undefined;this.previousAir=false;this.previous=undefined;}
 }

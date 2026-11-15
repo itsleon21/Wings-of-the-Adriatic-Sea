@@ -5,7 +5,25 @@ import {FlightGate} from '../missions/FlightGate.ts';
 export class RaceVisual{
  readonly root=new T.Group();
  private gates=raceCourse.map((point,i)=>new FlightGate(point,i===0?0xffc56b:0x73f1dc));
- constructor(){this.root.name='Race / luminous course gates';this.root.add(...this.gates.map(g=>g.root));}
+ constructor(){
+  this.root.name='Race / luminous course gates';
+  const shape=new T.Shape();
+  shape.moveTo(-.10,-.09);shape.lineTo(-.025,-.09);shape.lineTo(.075,0);
+  shape.lineTo(-.025,.09);shape.lineTo(-.10,.09);shape.lineTo(0,0);shape.closePath();
+  const arrow=new T.ShapeGeometry(shape);
+  const ivory=new T.MeshBasicMaterial({color:0xffe8aa,side:T.DoubleSide,toneMapped:false});
+  this.gates.forEach((gate,i)=>{
+   this.root.add(gate.root);
+   const exit=raceCourse[i+1];
+   if(!exit)return;
+   const localRight=new T.Vector3(1,0,0).applyQuaternion(gate.root.quaternion);
+   const lateral=exit.position.clone().sub(raceCourse[i].position).normalize().dot(localRight);
+   if(Math.abs(lateral)<.12)return;
+   const side=Math.sign(lateral),marker=new T.Mesh(arrow,ivory);
+   marker.position.set(side*1.15,0,0);marker.scale.x=side;
+   gate.root.add(marker);
+  });
+ }
  pass(index:number){this.gates[index]?.reset();}
  reset(){this.gates.forEach(g=>g.reset());}
  update(race:RaceManager,time:number){
@@ -30,7 +48,7 @@ varying float fade;varying vec3 tint;void main(){float d=length(gl_PointCoord-.5
  start(){this.clock=0;this.playing=true;this.points.visible=true;}
  reset(){this.playing=false;this.points.visible=false;this.clock=0;}
  update(dt:number){if(!this.playing)return;this.clock+=dt;const age=this.points.geometry.attributes.sparkAge as T.BufferAttribute;
-  for(let i=0;i<this.starts.length;i++){const b=Math.floor(i/120),t=this.clock-this.starts[i],a=Math.max(0,t),active=t>=0&&t<3.8;this.positions[i*3]=raceCourse[0].position.x+(b%4-1.5)*160+this.velocities[i*3]*a;this.positions[i*3+1]=active?240+(b%3)*65+this.velocities[i*3+1]*a-7*a*a:-1000;this.positions[i*3+2]=raceCourse[0].position.z-450+(b%2)*120+this.velocities[i*3+2]*a;age.setX(i,active?a:4);}
+  for(let i=0;i<this.starts.length;i++){const b=Math.floor(i/120),t=this.clock-this.starts[i],a=Math.max(0,t),active=t>=0&&t<3.8;this.positions[i*3]=raceCourse[raceCourse.length-1].position.x+(b%4-1.5)*160+this.velocities[i*3]*a;this.positions[i*3+1]=active?240+(b%3)*65+this.velocities[i*3+1]*a-7*a*a:-1000;this.positions[i*3+2]=raceCourse[raceCourse.length-1].position.z-450+(b%2)*120+this.velocities[i*3+2]*a;age.setX(i,active?a:4);}
   this.points.geometry.attributes.position.needsUpdate=true;age.needsUpdate=true;if(this.clock>19)this.reset();
  }
  dispose(){this.points.geometry.dispose();(this.points.material as T.Material).dispose();}

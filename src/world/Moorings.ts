@@ -19,6 +19,12 @@ export function findMooring(d:IslandDefinition):MooringSite{
  }throw new Error(`未找到安全栈桥岸线: ${d.name}`);
 }
 export const mooringSites=[...islands.map(findMooring),{id:'hotel',name:'花园酒店岛栈桥',shoreX:hotelIsland.x-85*hotelScale*hotelWidthScale,shoreZ:hotelIsland.z+189*hotelScale,x:hotelIsland.x-85*hotelScale*hotelWidthScale,z:hotelIsland.z+189*hotelScale+60,dx:0,dz:1,length:60,berth:new T.Vector3(hotelIsland.x-85*hotelScale*hotelWidthScale+24,0,hotelIsland.z+189*hotelScale+52),heading:Math.PI}];
+export function inCoralJettyClearance(x:number,z:number){
+ const site=mooringSites.find(m=>m.id==='coral')!;
+ const dx=x-site.shoreX,dz=z-site.shoreZ;
+ const along=dx*site.dx+dz*site.dz,across=dx*site.dz-dz*site.dx;
+ return along> -55&&along<site.length+300&&Math.abs(across)<140;
+}
 export class Moorings{
  readonly root=new T.Group();private lamps:T.MeshStandardMaterial;
  constructor(blockers:T.Box3[]){

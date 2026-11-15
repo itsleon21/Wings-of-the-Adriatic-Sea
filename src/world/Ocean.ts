@@ -54,7 +54,12 @@ export class Ocean {
    uniform vec3 sun;uniform vec3 sunColor;uniform vec3 fogColor;uniform float reflectionEnabled;
    vec2 seaHash(vec2 cell){vec3 q=fract(vec3(cell.xyx)*vec3(.1031,.1030,.0973));q+=dot(q,q.yzx+33.33);return fract((q.xx+q.yz)*q.zy);}
    float valueNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(seaHash(i).x,seaHash(i+vec2(1.,0.)).x,f.x),mix(seaHash(i+vec2(0.,1.)).x,seaHash(i+1.).x,f.x),f.y);}
-   float noise(vec2 p){return valueNoise(p)*.63+valueNoise(mat2(.8,-.6,.6,.8)*p*2.13+47.)*.25+valueNoise(p*4.37-19.)*.12;}
+   float noise(vec2 p){
+    float footprint=max(length(dFdx(p)),length(dFdy(p)));
+    vec3 weights=vec3(.63,.25,.12)*(1.-smoothstep(vec3(.18),vec3(.85),footprint*vec3(1.,2.13,4.37)));
+    vec3 samples=vec3(valueNoise(p),valueNoise(mat2(.8,-.6,.6,.8)*p*2.13+47.),valueNoise(p*4.37-19.));
+    return .5+dot(weights,samples-.5);
+   }
    // A non-tiling cellular pigment field, blended across irregular cell edges.
    float pigment(vec2 p){vec2 cell=floor(p),local=fract(p);float first=99.,second=99.,a=0.,b=0.;
     for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 offset=vec2(float(x),float(y)),id=cell+offset;vec2 delta=offset+.15+.70*seaHash(id)-local;float d=dot(delta,delta),v=seaHash(id+91.7).x;
@@ -70,7 +75,8 @@ export class Ocean {
     vec2 flow=p+vec2(time*.035,-time*.021);
     vec2 warp=vec2(valueNoise(flow/1400.),valueNoise(flow.yx/1700.+27.))-.5;
     float broad=pigment((flow+warp*650.)/620.),detail=pigment((mat2(.93,-.36,.36,.93)*flow+warp*120.)/145.);
-    float patches=clamp(broad*.78+detail*.22,0.,1.);
+    float finePigment=1.-smoothstep(200.,1200.,cameraPosition.y);
+    float patches=mix(broad,detail,.22*finePigment);
     vec3 deepPigment=mix(vec3(.007,.052,.115),vec3(.016,.135,.205),smoothstep(.08,.92,patches));
     deepPigment=mix(deepPigment,vec3(.014,.145,.160),smoothstep(.72,.98,broad)*.32);
     vec3 shallowPigment=mix(sand*.88,vec3(.035,.56,.46),patches);
@@ -145,7 +151,7 @@ export class Ocean {
     float localCrest=nearWater*nearRipples*crest*crestFacing*smoothstep(.24,.67,n2);
     color+=mix(vec3(.010,.015,.020),sunColor*.064,dayGain)*localCrest;
     float whitecaps=smoothstep(.48,.74,length(wave.yz))*smoothstep(.3,.8,storm.x)*(0.4+.6*n2);
-    color=mix(color,vec3(.48,.65,.65)*(.16+.84*dayGain),whitecaps*.4);
+    color=mix(color,vec3(.48,.65,.65)*(.16+.84*dayGain),whitecaps*.4*(1.-smoothstep(450.,2200.,distanceToCamera)));
     // Advancing depth contours break into patches. Filter narrow bands at flight altitude.
     float depth=max(0.,-bed);
     float shoreZone=smoothstep(.10,.85,depth)*(1.-smoothstep(5.,10.,depth));

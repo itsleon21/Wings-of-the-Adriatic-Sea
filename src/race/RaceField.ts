@@ -20,7 +20,8 @@ export class RaceField{
    if(r.race.state==='COUNTDOWN'){r.race.update(dt,r.flight.position,r.flight.position);continue;}
    if(r.race.state==='FAILED'||r.race.state==='COMPLETED')continue;
    const p=r.race.current!,f=r.flight;let input={pitch:1,roll:0,yaw:0,throttle:1};
-   if(f.state==='AIRBORNE'){const desired=Math.atan2(-(p.position.x-f.position.x),-(p.position.z-f.position.z)),error=Math.atan2(Math.sin(desired-f.heading),Math.cos(desired-f.heading));input={pitch:clamp((p.position.y-f.position.y)*.018-f.velocity.y*.13,-.18,.20)/f.tuning.maxPitch,roll:clamp(-error*2,-1,1),yaw:0,throttle:clamp((.90-f.throttle)*5,-1,1)};}
+   if(f.state==='AIRBORNE'){const target=r.race.recovering?p.position.clone().addScaledVector(p.normal,-Math.max(450,f.airspeed*5)):p.position;
+    const desired=Math.atan2(-(target.x-f.position.x),-(target.z-f.position.z)),error=Math.atan2(Math.sin(desired-f.heading),Math.cos(desired-f.heading));input={pitch:clamp((p.position.y-f.position.y)*.018-f.velocity.y*.13,-.18,.20)/f.tuning.maxPitch,roll:clamp(-error*2.7,-1,1),yaw:clamp(-error*.30,-.28,.28),throttle:clamp(((Math.abs(error)>.9&&f.position.distanceTo(p.position)<f.airspeed*4?.94:1)-f.throttle)*8,-1,1)};}
    f.update(dt,r.controls.update(dt,input,f));if(collides(f.previousPosition,f.position))f.crash('与地形碰撞');if(f.state==='CRASHED')r.race.fail();else r.race.update(dt,f.previousPosition,f.position);
   }
   const entries=[{name:raceAircraftCatalog.find(a=>a.id===player.tuning.id)?.name??player.tuning.id,race,position:player.position,player:true},...this.rivals.map(r=>({name:r.name,race:r.race,position:r.flight.position,player:false}))];

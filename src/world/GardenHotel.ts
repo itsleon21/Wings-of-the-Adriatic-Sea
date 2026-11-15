@@ -5,6 +5,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {hotelIsland,hotelScale,hotelWidthScale,hotelArchitectureWidth,hotelElevation,hotelOutline,insideHotel,random} from './WorldConfig.ts';
 /** Original Hotel Adriano, authored from the supplied five-view reference in metre units. */
 export class GardenHotel{
+ private nightBoats=new T.Group();
  private beacon=new LighthouseBeacon();
  private lanterns=new T.MeshStandardMaterial({color:0xffe3b3,emissive:0xffb65e,emissiveIntensity:0});
  private lightPools=new T.MeshBasicMaterial({color:0xffb560,transparent:true,opacity:0,depthWrite:false});
@@ -14,7 +15,7 @@ export class GardenHotel{
   const mat=(color:number,roughness=.88)=>new T.MeshStandardMaterial({color,roughness});
   const stone=mat(0xc5b798),trim=mat(0xe5dbc1),plaster=mat(0xe6d9b9),roof=mat(0xa95130),wood=mat(0x8c724f),iron=mat(0x46574d,.55),lawn=mat(0x879363),copper=mat(0x6f8865,.56),shadow=mat(0x354b45),water=mat(0x669c91,.25);
   stone.color.setHex(0xf2e6cc);stone.map=stoneTexture();roof.map=roofTexture();roof.bumpMap=roof.map;roof.bumpScale=.15;roof.color.setHex(0xffffff);roof.userData.architecture=true;plaster.userData.architecture=true;
-  const shutters=mat(0x426e63);
+  const shutters=mat(0xd3c3a1);
   const foliage=[0x3e5931,0x516c36,0x667b3e,0x7f8a47,0x4b6a48,0x8b9858].map(c=>mat(c));
   const flowers=[0xe6c6d5,0xd0b3dc,0xf1e4c0,0xd7bc69,0xe2a6ae,0xadbbd3].map(c=>mat(c));
 
@@ -55,6 +56,27 @@ export class GardenHotel{
   for(let x=-130;x<134;x+=4){box(wood,x,6.05,198,.12,.12,9);for(const z of[194.8,201.2])cyl(wood,x,.35,z,.25,10.6,.3,7);}
   for(let z=-36;z<193.5;z+=4){box(wood,129,6.05,z,9,.12,.12);cyl(wood,131,.35,z,.25,10.6,.3,7);}
   for(let z=205;z<=234;z+=4)for(const x of[-113,-107])cyl(wood,x,.35,z,.25,10.6,.3,7);
+  // Two connected berthing fingers: southwest and east, clear of the aircraft approach.
+  box(wood,-110,5.67,257.5,9,.65,45);
+  for(let z=237;z<=280;z+=4){
+   box(wood,-110,6.05,z,9,.12,.12);
+   for(const x of[-113,-107])cyl(wood,x,.35,z,.25,10.6,.3,7);
+  }
+  box(wood,178.5,5.67,-24,108,.65,9);
+  for(let x=128;x<=232;x+=4){
+   box(wood,x,6.05,-24,.12,.12,9);
+   for(const z of[-27.2,-20.8])cyl(wood,x,.35,z,.25,10.6,.3,7);
+  }
+  this.nightBoats.name='Hotel / night visitors at both jetties';
+  const berthLights=new T.MeshBasicMaterial({color:0xffd095,toneMapped:false});
+  for(const [i,slot] of [[-132,260,0],[180,-44,Math.PI/2],[216,-4,Math.PI/2]].entries()){
+   const boat=buildHarborBoat(i+1);
+   boat.name='Hotel / night jetty berth '+(i+1);
+   boat.scale.setScalar(1.3);boat.position.set(slot[0]*hotelWidthScale,.35,slot[1]);boat.rotation.y=slot[2];
+   const lamp=new T.Mesh(new T.SphereGeometry(.5,6,4),berthLights);
+   lamp.position.set(0,3,0);boat.add(lamp);this.nightBoats.add(boat);
+  }
+  this.nightBoats.visible=false;this.root.add(this.nightBoats);
   // A single watertight stair body, not disconnected floating tread boxes.
   const stairProfile=new T.Shape();stairProfile.moveTo(-194.5,5.1);stairProfile.lineTo(-194.5,5.95);
   for(let i=0;i<48;i++){
@@ -279,7 +301,7 @@ export class GardenHotel{
   const bounds=(x:number,y:number,z:number,w:number,h:number,l:number)=>blockers.push(new T.Box3(new T.Vector3(d.x+(x-w/2)*hotelScale,hotelElevation(y-h/2)*hotelScale,d.z+(z-l/2)*hotelScale),new T.Vector3(d.x+(x+w/2)*hotelScale,hotelElevation(y+h/2)*hotelScale,d.z+(z+l/2)*hotelScale)));
   for(let z=-187;z<190;z+=6){let min=125,max=-125;for(let x=-125;x<=125;x++)if(insideHotel(x*hotelWidthScale,z)){min=Math.min(min,x);max=Math.max(max,x);}if(max>min)bounds((min+max)/2*hotelWidthScale,10,z,(max-min)*hotelWidthScale,34,6);}bounds(0,67,104,122*hotelArchitectureWidth,80,92);bounds(12*hotelArchitectureWidth,59,42,98*hotelArchitectureWidth,64,56);bounds(0,85,119,15*hotelArchitectureWidth,118,15);bounds(129*hotelWidthScale,16,156,6*hotelWidthScale,23,78);bounds(46*hotelWidthScale,31,-49,22*hotelWidthScale,8,30);bounds(-128*hotelWidthScale,14.95,198,.6*hotelWidthScale,18,.6);
  }
- setNightness(n:number,dt=0){this.beacon.update(dt,n);const dusk=T.MathUtils.smoothstep(n,.15,.8);this.windows.emissiveIntensity=dusk*1.25;this.lanterns.emissiveIntensity=dusk*3;this.lightPools.opacity=dusk*.64;}
+ setNightness(n:number,dt=0){this.nightBoats.visible=n>.15;this.beacon.update(dt,n);const dusk=T.MathUtils.smoothstep(n,.15,.8);this.windows.emissiveIntensity=dusk*1.25;this.lanterns.emissiveIntensity=dusk*3;this.lightPools.opacity=dusk*.64;}
 }
 /** Warm uneven limestone blocks, filtered with mipmaps to avoid subpixel masonry shimmer. */
 function stoneTexture(){const size=512,pixels=new Uint8Array(size*size*4),rng=random(1903),blocks=Array.from({length:128},()=>rng());for(let y=0;y<size;y++)for(let x=0;x<size;x++){const row=Math.floor(y/32),xx=(x+(row%2)*32)%size,col=Math.floor(xx/64),mortar=xx%64<2||y%32<2;const grain=(rng()-.5)*.045,shade=(blocks[(row*8+col)%128]-.5)*.16+grain+.035*Math.sin(x*.025+y*.014),i=(y*size+x)*4;const base=mortar?[.58,.55,.47]:[.83+shade,.78+shade,.66+shade];for(let k=0;k<3;k++)pixels[i+k]=Math.round(T.MathUtils.clamp(base[k],0,1)*255);pixels[i+3]=255;}const t=new T.DataTexture(pixels,size,size,T.RGBAFormat);t.wrapS=t.wrapT=T.RepeatWrapping;t.magFilter=T.LinearFilter;t.minFilter=T.LinearMipmapLinearFilter;t.generateMipmaps=true;t.colorSpace=T.SRGBColorSpace;t.needsUpdate=true;return t;}

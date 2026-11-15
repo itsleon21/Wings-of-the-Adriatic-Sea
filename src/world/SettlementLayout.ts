@@ -63,7 +63,8 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
  const anchors=town?[[-.32,-.13],[.20,-.17],[-.08,-.41],[.38,-.60],[-.34,-.64],[-.52,-.31]]:[[-.35,-.08],[.30,-.18],[-.06,-.42],[-.36,-.60]];
  for(const [ax,az] of anchors){
   const x=d.x+ax*d.rx,z=d.z+az*d.rz,start=mainRoad.points.reduce((best,p)=>Math.hypot(p.x-x,p.z-z)<Math.hypot(best.x-x,best.z-z)?p:best),branch:VillageRoad={points:[],width:4.2};
-  for(let i=0;i<=18;i++){const t=i/18,dx=x-start.x,dz=z-start.z,len=Math.hypot(dx,dz)||1,bend=Math.sin(t*Math.PI)*(town?24*Math.sin(ax*9+az*6):9);branch.points.push({x:start.x+dx*t-(town?dz/len*bend:0),z:start.z+dz*t+(town?dx/len*bend:Math.sin(t*Math.PI)*9)});}roads.push(branch);
+  for(let i=0;i<=18;i++){const t=i/18,dx=x-start.x,dz=z-start.z,len=Math.hypot(dx,dz)||1,bend=Math.sin(t*Math.PI)*(town?24*Math.sin(ax*9+az*6):9);branch.points.push({x:start.x+dx*t-(town?dz/len*bend:0),z:start.z+dz*t+(town?dx/len*bend:Math.sin(t*Math.PI)*9)});}
+  roads.push(branch);
   plazas.push({x,z,radius:town&&ax===-.08?14:8,market:town&&ax===-.08});
  }
  function add(kind:HouseKind,district:District,x:number,z:number,angle:number){
@@ -76,7 +77,7 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
   if(coastalLandmarkOccupied(town&&d.canonical?2*d.x-x:x,town&&d.canonical?2*d.z-z:z,radius+2))return false;
   if(plazas.some(q=>Math.hypot(x-q.x,z-q.z)<q.radius+radius*.72))return false;
   // Sample plot edges as well as its centre: long rotated houses cannot straddle a lane.
-  const corners=plotCorners(p,1),samples=[{x,z},...corners,...corners.map((a,i)=>({x:(a.x+corners[(i+1)%4].x)/2,z:(a.z+corners[(i+1)%4].z)/2}))];
+  const corners=plotCorners(p,1),samples=[{x,z},...plotCorners(p),...corners,...corners.map((a,i)=>({x:(a.x+corners[(i+1)%4].x)/2,z:(a.z+corners[(i+1)%4].z)/2}))];
   if(roads.some(road=>roadIntersectsPlot(road,p,1.4)))return false;
   const heights=samples.map(q=>terrainHeight(d,q.x,q.z)),low=Math.min(...heights),high=Math.max(...heights);
   const slope=Math.hypot(terrainHeight(d,x+3,z)-terrainHeight(d,x-3,z),terrainHeight(d,x,z+3)-terrainHeight(d,x,z-3))/6;
@@ -138,6 +139,11 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
  const assigned=new Set<HousePlot>();for(const market of plazas.filter(p=>p.market)){
   const near=houses.filter(p=>p.width>=12&&!assigned.has(p)&&Math.hypot(p.x-market.x,p.z-market.z)<135).sort((a,b)=>Math.hypot(a.x-market.x,a.z-market.z)-Math.hypot(b.x-market.x,b.z-market.z));
   for(const [i,p] of near.slice(0,2).entries()){p.kind=i===0?'HouseMarketHall':'HouseGranary';p.height=Math.min(p.height,i===0?12:13);assigned.add(p);}
+ }
+ // Retain a loggia facade when the smaller town changes procedural plot availability.
+ if(!houses.some(p=>p.kind==='HouseLoggia')){
+  const plot=houses.find(p=>p.kind==='HouseTownhouse'&&p.district==='village');
+  if(plot)plot.kind='HouseLoggia';
  }
  // Only three outlying mill houses: keep the port skyline residential.
  const satellites:HousePlot[]=[];

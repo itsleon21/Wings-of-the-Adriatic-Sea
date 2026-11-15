@@ -4,6 +4,7 @@ import type { FlightController } from '../aircraft/FlightController.ts';
 export const cameraViews=[{id:'chase',name:'追尾'},{id:'wide',name:'远距追尾'},{id:'side',name:'侧方'},{id:'overhead',name:'俯瞰'},{id:'cockpit',name:'驾驶舱'}] as const;
 export class ChaseCamera {
   private index=0;private targetPosition=new Vector3();private look=new Vector3();private forward=new Vector3();private right=new Vector3();private desired=new Vector3();
+  private visualSpeed=0;private previousSpeed=0;private acceleration=0;
   private lastAnchor=new Vector3();private anchored=false;
   private lookYaw=0;private lookPitch=0;private desiredYaw=0;private desiredPitch=0;private movement=false;
   get view(){return cameraViews[this.index];}
@@ -16,9 +17,16 @@ export class ChaseCamera {
   cycle(flight:FlightController){this.recenter();this.lookYaw=this.lookPitch=0;this.index=(this.index+1)%cameraViews.length;this.update(flight,0,true);return this.view;}
   keepAbove(minimum:number){if(this.camera.position.y<minimum){this.camera.position.y=minimum;this.camera.lookAt(this.look);this.camera.updateMatrixWorld();}}
   reset(flight:FlightController){this.recenter();this.lookYaw=this.lookPitch=0;this.index=0;this.update(flight,1,true);}
-  update(flight:FlightController,dt:number,immediate=false,pose?:{position:Vector3;quaternion:Quaternion}) {
+  update(flight:FlightController,dt:number,immediate=false,pose?:{position:Vector3;quaternion:Quaternion},raceActive=false) {
     const speed=flight.airspeed,base=flight.tuning.cameraDistance,mode=this.view.id;
     const anchor=pose?.position??flight.position;
+    const blend=immediate?1:1-Math.exp(-dt*3);
+    this.visualSpeed=MathUtils.lerp(this.visualSpeed,speed,blend);
+    const acceleration=dt>0&&!immediate?(speed-this.previousSpeed)/dt:0;
+    this.previousSpeed=speed;
+    this.acceleration=MathUtils.lerp(this.acceleration,MathUtils.clamp(acceleration,-10,10),blend);
+    const rush=MathUtils.smoothstep(this.visualSpeed,flight.tuning.liftSpeed*.65,flight.tuning.maxSpeed);
+
     // Carry the rig with aircraft translation before smoothing its relative orbit.
     // Independent world-space lag previously left the camera aiming behind fast aerobatics.
     if(this.anchored&&!immediate){this.desired.copy(anchor).sub(this.lastAnchor);this.camera.position.add(this.desired);this.look.add(this.desired);}
@@ -43,14 +51,21 @@ export class ChaseCamera {
       this.desired.addScaledVector(this.forward,-base*.7);this.desired.y+=base*3+speed*.14;this.targetPosition.addScaledVector(this.forward,base*.4);
     }else{
       const wide=mode==='wide'?1.85:1;
-      this.desired.addScaledVector(this.forward,-(base+speed*.1)*wide);
-      this.desired.y+=(flight.tuning.cameraHeight+speed*.035)*wide;
-      this.targetPosition.addScaledVector(this.forward,mode==='wide'?13:22);this.targetPosition.y+=1.4;
+      this.desired.addScaledVector(this.forward,-(base+speed*.045+this.acceleration*.18)*wide);
+      this.desired.y+=(flight.tuning.cameraHeight+speed*.012-this.acceleration*.06)*wide;
+      // Look gently into a bank while keeping the horizon level and the aircraft in frame.
+      if(flight.state==='AIRBORNE'&&!flight.maneuver&&!flight.rolling){
+        const speedBlend=MathUtils.smoothstep(speed,flight.tuning.takeoffSpeed,flight.tuning.cruiseSpeed);
+        this.targetPosition.addScaledVector(this.right,-Math.sin(flight.bank)*base*(raceActive?.38:.25)*speedBlend);
+      }
+      this.targetPosition.addScaledVector(this.forward,mode==='wide'?13:18);
+      this.targetPosition.y+=1.4+MathUtils.clamp(flight.velocity.y*.06,-2,2);
     }
     this.desired.y=Math.max(3,this.desired.y);this.camera.position.lerp(this.desired,immediate?1:1-Math.exp(-4*dt));
     // Lock attention onto the rendered aircraft during aerobatics; retain a level horizon.
     if(flight.maneuver||flight.rolling){this.targetPosition.copy(anchor);this.targetPosition.y+=1;this.look.copy(this.targetPosition);}
     else this.look.lerp(this.targetPosition,immediate?1:1-Math.exp(-5*dt));this.camera.up.set(0,1,0);this.camera.lookAt(this.look);
-    this.camera.fov=mode==='overhead'?50:mode==='side'?48:52+Math.min(8,speed*.1);this.camera.updateProjectionMatrix();
+    const targetFov=mode==='overhead'?50:mode==='side'?48:54+rush*17+Math.max(0,this.acceleration)*.3;
+    this.camera.fov=MathUtils.lerp(this.camera.fov,targetFov,immediate?1:1-Math.exp(-dt*3));this.camera.updateProjectionMatrix();
   }
 }

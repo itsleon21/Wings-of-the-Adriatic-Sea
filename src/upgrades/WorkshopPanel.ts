@@ -1,3 +1,4 @@
+import {readTrial} from './TrialTelemetry';
 import {PartViewer} from './PartViewer';
 import {parts,applyParts} from './Workshop';
 import type {Workshop} from './Workshop';
@@ -15,10 +16,28 @@ export class WorkshopPanel{
   const actions=this.host.querySelector('.workbench-actions')!,owned=w.owned.includes(p.id),key=p.aircraft+':'+p.slot,installed=w.equipped[key]===p.id;
   const buy=document.createElement('button');buy.textContent=owned?'已拥有':w.credits<p.cost?`还需 ${p.cost-w.credits} 航空币`:`购买 · ${p.cost} 航空币`;buy.disabled=owned||w.credits<p.cost;buy.onclick=()=>{w.buy(p.id);this.render();};
   const equip=document.createElement('button');equip.textContent=installed?'卸下部件':'免费装配';equip.disabled=!owned;equip.onclick=()=>{if(installed){delete w.equipped[key];w.save();}else w.equip(p.id);this.render();};actions.append(buy,equip);
-  for(const [text,query] of [['试飞此方案','trial='+p.id],['试飞基础配置','trial=stock&configuration=stock'],['驾驶已装配置','configuration=modified']]){const a=document.createElement('a');a.textContent=text;a.href=`./?aircraft=${plane.id}&launch=1&${query}`;actions.append(a);}
+  for(const [text,query] of [['试飞此方案','trial='+p.id],['试飞基础配置','trial=stock&configuration=stock'],['试飞已装配置','trial=installed&configuration=modified']]){const a=document.createElement('a');a.textContent=text;a.href=`./?aircraft=${plane.id}&launch=1&berth=harbor&time=noon&weather=sunny&${query}`;actions.append(a);}
   const equipped=available.filter(p=>w.equipped[p.aircraft+':'+p.slot]===p.id),preview=[...equipped.filter(x=>x.slot!==p.slot),p],tuned=applyParts(plane.tuning,preview),base=plane.tuning;
-  const stats:[string,number,number,string][]=[['推力',base.thrust,tuned.thrust,''],['姿态响应',base.attitudeResponse,tuned.attitudeResponse,''],['起飞空速',base.takeoffSpeed*3.6,tuned.takeoffSpeed*3.6,'km/h'],['极速上限',base.maxSpeed*3.6,tuned.maxSpeed*3.6,'km/h'],['水面阻力',base.waterDrag,tuned.waterDrag,''],['着水下降率上限',base.safeLandingSink,tuned.safeLandingSink,'m/s']];
-  this.host.querySelector('.workbench-comparison')!.innerHTML=`<small>基础 → 此方案与其他已装槽位组合</small><dl>${stats.map(([name,a,b,unit])=>`<div><dt>${name}</dt><dd>${a.toFixed(a<10?2:0)} → <b>${b.toFixed(b<10?2:0)}</b> ${unit}</dd></div>`).join('')}</dl>`;
+  const current=applyParts(base,equipped);
+  const stats:[string,keyof typeof base,string,boolean][]=[
+   ['推力','thrust','',true],['阻力系数','drag','',false],['姿态响应','attitudeResponse','',true],
+   ['起飞空速','takeoffSpeed','km/h',false],['极速上限','maxSpeed','km/h',true],
+   ['水面阻力','waterDrag','',false],['安全着水下降率','safeLandingSink','m/s',true]];
+  const comparison=this.host.querySelector('.workbench-comparison')!;
+  comparison.innerHTML='<small>基础 / 目前装配 / 所选方案（含其他已装槽）</small><dl>'+stats.map(([name,key,unit,higher])=>{
+   const factor=unit==='km/h'?3.6:1,a=Number(base[key])*factor,b=Number(current[key])*factor,c=Number(tuned[key])*factor;
+   const delta=(c/b-1)*100,improves=higher?delta>0:delta<0;
+   const digits=a<.01?5:a<10?2:0;
+   return '<div><dt>'+name+'</dt><dd>'+a.toFixed(digits)+' / '+b.toFixed(digits)+' / <b>'+c.toFixed(digits)+'</b> '+unit+
+    (Math.abs(delta)>.01?' <span style="color:'+(improves?'#276249':'#95532d')+'">'+(delta>0?'+':'')+delta.toFixed(1)+'%</span>':'')+'</dd></div>';
+  }).join('')+'</dl>';
+  const baseline=readTrial(plane.id,'stock'),candidate=readTrial(plane.id,preview.map(x=>x.id).sort().join('+'));
+  const results=document.createElement('section');
+  const format=(value:number|undefined,unit:string)=>value===undefined?'待实测':value.toFixed(1)+' '+unit;
+  results.innerHTML='<h3>最近同场试飞记录</h3><p>晴天正午 · 基地栈桥出发。先试飞基础配置，再试飞此方案；测量会保存在本机。相同的油门和操纵方式便于比较。</p><dl>'+
+   [['起飞距离',baseline?.takeoff?.distance,candidate?.takeoff?.distance,'m'],['起飞时间',baseline?.takeoff?.seconds,candidate?.takeoff?.seconds,'s'],['到100米用时',baseline?.climb,candidate?.climb,'s'],['实测最高空速',baseline?.maximum,candidate?.maximum,'km/h']].map(row=>'<div><dt>'+row[0]+'</dt><dd>'+format(row[1] as number|undefined,String(row[3]))+' → '+format(row[2] as number|undefined,String(row[3]))+'</dd></div>').join('')+'</dl>';
+  comparison.append(results);
+
  }
  dispose(){this.viewer?.dispose();this.viewer=undefined;}
 }

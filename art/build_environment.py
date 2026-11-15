@@ -6,7 +6,7 @@ bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=Fals
 scene=bpy.context.scene;scene.gravity=(0,-9.81,0)
 def material(name,c):
  m=bpy.data.materials.new(name);m.diffuse_color=(*c,1);m.use_nodes=True;m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value=(*c,1);m.node_tree.nodes['Principled BSDF'].inputs['Roughness'].default_value=.85;return m
-cream=material('Limewashed plaster',(.79,.71,.52));ochre=material('Ochre plaster',(.68,.46,.25));ivory=material('Limestone trim',(.91,.83,.64));roof=material('Terracotta tiles',(.43,.115,.055));rooflight=material('Sunlit terracotta',(.56,.20,.10));green=material('Weathered teal shutters',(.055,.22,.19));dark=material('Recessed windows',(.035,.065,.055));wood=material('Weathered walnut',(.19,.13,.075));pine=material('Pine foliage',(.025,.07,.028));pinelight=material('Sunlit needles',(.06,.12,.045));stone=material('Limestone',(.5,.49,.40));glass=material('Lantern glass',(.36,.53,.46));metal=material('Aged bronze',(.17,.15,.10))
+cream=material('Limewashed plaster',(.79,.71,.52));ochre=material('Ochre plaster',(.68,.46,.25));ivory=material('Limestone trim',(.91,.83,.64));roof=material('Terracotta tiles',(.43,.115,.055));rooflight=material('Sunlit terracotta',(.56,.20,.10));green=material('Beige painted joinery',(.65,.55,.38));dark=material('Recessed windows',(.035,.065,.055));wood=material('Weathered walnut',(.19,.13,.075));pine=material('Pine foliage',(.025,.07,.028));pinelight=material('Sunlit needles',(.06,.12,.045));stone=material('Limestone',(.5,.49,.40));glass=material('Lantern glass',(.36,.53,.46));metal=material('Aged bronze',(.17,.15,.10))
 def group(name,x):
  o=bpy.data.objects.new(name,None);scene.collection.objects.link(o);o.location.x=x;return o
 def finish(o,name,m,parent):
@@ -74,9 +74,19 @@ cylinder('Mast',(0,3.4,-2.4),.095,6.2,wood,g,8)
 for x in [-1.85,1.85]:box('Gunwale',(x,1.1,0),(.14,.2,7),ivory,g)
 # Normalized Adriatic village families. The runtime scales these exact modules in meters.
 material_cache_glass=material('Muted sky reflected glass',(.065,.12,.135))
-rose=material('Faded coral plaster',(.72,.46,.34));sand=material('Warm sand plaster',(.81,.73,.55));chalk=material('Pale coastal plaster',(.80,.79,.68));sage=material('Faded blue green joinery',(.10,.28,.25));awn=material('Ochre canvas awning',(.67,.42,.20));roofdark=material('Weathered burnt clay',(.34,.095,.045))
+rose=material('Faded coral plaster',(.72,.46,.34));sand=material('Warm sand plaster',(.81,.73,.55));chalk=material('Pale coastal plaster',(.80,.79,.68));sage=material('Warm beige shutters',(.65,.55,.38));awn=material('Ochre canvas awning',(.67,.42,.20));roofdark=material('Weathered burnt clay',(.34,.095,.045))
 def plinth(g,x=0,z=0,w=1,d=1):box('Rough stone plinth',(x,-.46,z),(w,.08,d),stone,g)
-def wallblock(g,x,z,w,d,top,m):box('Plastered masonry',(x,(top-.5)/2,z),(w,top+.5,d),m,g,.005)
+def wallblock(g,x,z,w,d,top,m):
+ box('Plastered masonry',(x,(top-.5)/2,z),(w,top+.5,d),m,g,.005)
+ # Projecting eaves cast a continuous shadow across each principal facade.
+ box('Lime cornice',(x,top-.023,z),(w+.026,.038,d+.026),ivory,g)
+ box('Cornice drip edge',(x,top+.002,z),(w+.049,.017,d+.049),stone,g)
+ if g.name in ['HouseTownhouse','HouseVilla','HouseArcade']:
+  for side in [-1,1]:
+   for i in range(5):
+    length=.074 if i%2 else .11
+    box('Dressed corner stone',(x+side*(w-length)*.5,-.38+i*(top+.31)/5,z+d*.5),(length,.072,.031),chalk,g)
+
 def window(g,x,y,z,w=.18,h=.23,shutters=True):
  box('Limestone window surround',(x,y,z),(w+.043,h+.04,.018),ivory,g)
  box('Deep shaded window',(x,y,z+.011),(w,h,.012),dark,g)
@@ -227,18 +237,133 @@ chimney(g,-.35,-.28,.49,.92,sand)
 box('Terrace pergola crossbeam',(.29,.30,.29),(.45,.027,.028),wood,g)
 for xx in[.09,.49]:box('Pergola slender post',(xx,.13,.29),(.023,.34,.023),wood,g)
 
+# Hvar-inspired public loggia: open colonnade, recessed rear hall and a low hipped roof.
+g=group('HouseLoggia',48);plinth(g,0,0,1.13,1.02)
+wallblock(g,0,-.27,1.05,.39,.33,chalk)
+box('Loggia raised stone floor',(0,-.45,.10),(1.09,.10,.88),ivory,g)
+for xx in[-.40,-.13,.14,.41]:arch(g,xx,-.40,.47,.22,.64)
+for xx in[-.40,-.13,.14,.41]:window(g,xx,-.04,-.062,.12,.25,False)
+box('Continuous loggia entablature',(0,.28,.47),(1.13,.10,.10),ivory,g)
+hip(g,0,0,1.20,1.12,.34,.64,roofdark)
+for xx in[-.51,.51]:box('Side arcade pier',(xx,-.08,.08),(.07,.72,.80),chalk,g)
+for i in range(3):box('Public hall entrance steps',(0,-.488+i*.026,.56-i*.025),(.62,.022,.075),stone,g)
+# Narrow three-storey palazzo: projecting central balcony, rusticated base and a true hipped crown.
+g=group('HousePalazzo',51);plinth(g,0,0,.92,1.0)
+wallblock(g,0,-.02,.85,.94,.62,chalk)
+box('Rusticated ground storey',(0,-.33,-.02),(.87,.31,.96),sand,g)
+for y in[-.40,-.30,-.20]:box('Stone base horizontal course',(0,y,.466),(.87,.012,.016),ivory,g)
+for y in[-.05,.28]:
+ for xx in[-.27,0,.27]:window(g,xx,y,.46,.13,.23)
+for y in[.10,.45]:box('Palazzo floor string course',(0,y,.46),(.90,.027,.049),ivory,g)
+door(g,0,.475,-.15,.19);rail(g,0,.55,.34,.18,.17)
+hip(g,0,-.02,1.02,1.08,.64,.94)
+chimney(g,-.29,-.24,.67,.925)
+# Naval boatyard: two unequal gables, a large timber slip door and a glazed clerestory.
+g=group('HouseBoatyard',54);plinth(g,0,0,1.12,1.02)
+wallblock(g,-.18,0,.67,.95,.22,stone);wallblock(g,.35,-.05,.36,.85,.04,ochre)
+gable(g,-.18,0,.77,1.08,.23,.69,m=roofdark)
+gable(g,.35,-.05,.43,.97,.05,.38,m=roof)
+box('Tall recessed boat shed opening',(-.18,-.13,.487),(.47,.63,.018),dark,g)
+for xx in[-.30,-.06]:
+ box('Sliding walnut boat shed door',(xx,-.14,.505),(.22,.60,.024),wood,g)
+ for j in range(4):box('Shed door vertical batten',(xx-.075+j*.05,-.14,.522),(.008,.58,.013),metal,g)
+box('Slip door iron overhead track',(-.18,.20,.52),(.60,.025,.037),metal,g)
+window(g,-.18,.39,.51,.19,.14,False)
+window(g,.35,-.14,.385,.17,.17,False)
+for z in[-.30,0,.30]:box('Boatyard side buttress',(-.53,-.15,z),(.05,.69,.075),ivory,g)
+
+# Working mill-house: tapered stone tower, attached miller's home, furled canvas at rest.
+g=group('HouseMill',57);plinth(g,0,0,1.15,1.02)
+wallblock(g,-.23,-.05,.62,.83,.17,chalk);gable(g,-.23,-.05,.73,.94,.18,.48,m=roofdark)
+cylinder('Mill house tapered stone tower',(.28,.035,0),.28,1.07,chalk,g,16)
+cylinder('Mill tower limestone base',(.28,-.455,0),.32,.09,stone,g,16)
+bpy.ops.mesh.primitive_cone_add(vertices=16,radius1=.34,radius2=0,depth=.37,location=(.28,.755,0),rotation=(-math.pi/2,0,0));finish(bpy.context.object,'Mill conical clay cap',roof,g)
+door(g,-.24,.38,-.14,.17);window(g,-.24,-.03,.39,.15,.18)
+window(g,.28,.12,.285,.11,.16,False)
+# Resting timber sail frame; canvas is rolled on alternate spars.
+for i in range(4):
+ a=i*math.pi/2+.30;c=math.cos(a);ss=math.sin(a)
+ for t in [.12,.25,.31]:
+  o=box('Mill resting sail spar',(.28+c*t,.43+ss*t,.35),(.14,.015,.018),wood,g);o.rotation_euler.z=a
+ if i%2==0:
+  o=box('Furled linen on sail',(.28+c*.29,.43+ss*.29,.37),(.19,.038,.025),awn,g);o.rotation_euler.z=a
+# Two additional mill-house silhouettes: taller round tower and square stone tower.
+for name,xx in [('HouseMillTall',60),('HouseMillSquare',63)]:
+ source=bpy.data.objects['HouseMill'];g=group(name,xx)
+ for obj in source.children_recursive:
+  copy=obj.copy();copy.data=obj.data.copy();scene.collection.objects.link(copy);copy.parent=g
+  if name=='HouseMillTall':
+   if obj.name.startswith('Mill house tapered stone tower'):copy.scale.z*=1.10;copy.location.y+=.0535
+   if obj.name.startswith('Mill conical clay cap'):copy.location.y+=.107;copy.data.materials.clear();copy.data.materials.append(rooflight)
+  else:
+   if obj.name.startswith('Mill house tapered stone tower') or obj.name.startswith('Mill conical clay cap'):
+    radius=.22 if obj.name.startswith('Mill house') else .30
+    for v in copy.data.vertices:
+     extent=max(abs(v.co.x),abs(v.co.y))
+     if extent>.001:v.co.x=v.co.x/extent*radius;v.co.y=v.co.y/extent*radius
+   if obj.name.startswith('Mill conical clay cap'):copy.data.materials.clear();copy.data.materials.append(roofdark)
+# Grain warehouse with large shutters, loading doors and a roof hoist.
+g=group('HouseGranary',66);plinth(g,0,0,1.12,1.04);wallblock(g,0,0,1.03,.96,.40,sand);gable(g,0,0,1.18,1.10,.41,.83,m=roofdark)
+for x in[-.30,.30]:
+ door(g,x,.49,-.04,.22);window(g,x,.20,.49,.15,.19,False)
+box('Grain loading loft hatch',(0,.54,.557),(.19,.22,.025),wood,g)
+box('Loft timber hoist beam',(0,.70,.57),(.035,.04,.16),wood,g)
+for x in[-.45,.45]:box('Grain shed corner pier',(x,-.02,.494),(.052,.82,.045),stone,g)
+# Public covered market: open stone arches and recessed shutters, broad hipped roof.
+g=group('HouseMarketHall',69);plinth(g,0,0,1.15,1.04);wallblock(g,0,-.29,1.05,.38,.32,chalk)
+box('Market hall raised floor',(0,-.455,.03),(1.10,.09,.94),ivory,g)
+for x in[-.40,-.13,.14,.41]:arch(g,x,-.40,.48,.22,.65)
+box('Market hall entablature',(0,.28,.48),(1.16,.09,.10),ivory,g);hip(g,0,0,1.23,1.14,.34,.74,m=rooflight)
+for x in[-.48,.48]:box('Market hall masonry side',(x,-.10,.07),(.07,.70,.76),sand,g)
+for x in[-.34,0,.34]:window(g,x,-.04,-.09,.15,.25,False)
 # Consistent outward face normals on the newly built architectural shells.
-for module_name in ['HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace']:
+for module_name in ['HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace','HouseLoggia','HousePalazzo','HouseBoatyard','HouseMill','HouseMillTall','HouseMillSquare','HouseGranary','HouseMarketHall']:
  for obj in bpy.data.objects[module_name].children_recursive:
   if obj.type=='MESH':
    bm=bmesh.new();bm.from_mesh(obj.data);bmesh.ops.recalc_face_normals(bm,faces=bm.faces);bm.to_mesh(obj.data);bm.free()
+# Bake short-range sky visibility into vertex colors for indirect light only.
+# One BVH per module includes eaves, window surrounds and arcades.
+from mathutils.bvhtree import BVHTree
+bpy.context.view_layer.update()
+for name in ['HouseCream','HouseOchre','HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace','HouseLoggia','HousePalazzo','HouseBoatyard','HouseMill','HouseMillTall','HouseMillSquare','HouseGranary','HouseMarketHall']:
+ objects=[obj for obj in bpy.data.objects[name].children_recursive if obj.type=='MESH']
+ vertices=[];polygons=[]
+ for obj in objects:
+  offset=len(vertices)
+  vertices.extend([obj.matrix_world @ v.co for v in obj.data.vertices])
+  polygons.extend([tuple(offset+i for i in f.vertices) for f in obj.data.polygons])
+ tree=BVHTree.FromPolygons(vertices,polygons)
+ for obj in objects:
+  color=obj.data.color_attributes.new(name='Surface visibility',type='FLOAT_COLOR',domain='CORNER')
+  obj.data.color_attributes.active_color=color
+  normal_matrix=obj.matrix_world.to_3x3().inverted().transposed()
+  minimum=1.
+  for polygon in obj.data.polygons:
+   n=(normal_matrix @ polygon.normal).normalized()
+   tangent=n.cross(Vector((0,1,0)))
+   if tangent.length<.01:tangent=n.cross(Vector((1,0,0)))
+   tangent.normalize();bitangent=n.cross(tangent)
+   for loop_index in polygon.loop_indices:
+    vertex=obj.data.vertices[obj.data.loops[loop_index].vertex_index]
+    sample=vertex.co.lerp(polygon.center,.32)
+    origin=obj.matrix_world @ sample+n*.001
+    blocked=0.
+    for i in range(8):
+     angle=i*math.tau/8
+     direction=(n*.55+tangent*math.cos(angle)*.84+bitangent*math.sin(angle)*.84).normalized()
+     hit,_,_,distance=tree.ray_cast(origin,direction,.42)
+     if hit is not None:blocked+=1-distance/.42
+    ao=max(.36,1-blocked/8)
+    color.data[loop_index].color=(ao,ao,ao,1)
+    minimum=min(minimum,ao)
+  if minimum<.9:print('Baked cavity',name,obj.name,round(minimum,3),flush=True)
 # Apply modifiers and export every module with its own parent.
 for o in list(scene.objects):
  if o.type=='MESH':
   bpy.context.view_layer.objects.active=o
   for mod in list(o.modifiers):bpy.ops.object.modifier_apply(modifier=mod.name)
 os.makedirs(os.path.join(BASE,'public','models'),exist_ok=True)
-bpy.ops.export_scene.gltf(filepath=os.path.join(BASE,'public','models','environment.glb'),export_format='GLB',export_yup=False,export_apply=True)
+bpy.ops.export_scene.gltf(filepath=os.path.join(BASE,'public','models','environment.glb'),export_format='GLB',export_yup=False,export_apply=True,export_vertex_color='ACTIVE')
 bpy.context.preferences.filepaths.save_version=0
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(BASE,'art','environment.blend'),compress=True)
 print('RED_WINGS_ENVIRONMENT_COMPLETE')

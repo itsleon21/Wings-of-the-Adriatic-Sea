@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {terrainHeight,random,islands,coralIslets,coralReefLinks} from './WorldConfig.ts';
-import {mooringSites} from './Moorings.ts';
+import {mooringSites,inCoralJettyClearance} from './Moorings.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {appendSurfacePolygon} from './TerrainSurface.ts';
 
@@ -61,7 +61,7 @@ export function addCoralReefLinks(root:T.Group,d:IslandDefinition,blockers:T.Box
  mesh.name='Coral archipelago / reef stepping stones';mesh.receiveShadow=mesh.castShadow=true;
  for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b];for(let j=0;j<36&&count<54;j++){
   const t=.30+rng()*.40,x=d.x+(p.x+(q.x-p.x)*t)*d.rx+(rng()-.5)*21,z=d.z+(p.z+(q.z-p.z)*t)*d.rz+(rng()-.5)*21,h=terrainHeight(d,x,z);
-  if(h>-.2||h<-6)continue;const sx=1.5+rng()*2.6,sy=1.8+rng()*2.7,sz=1.4+rng()*2.4,y=Math.max(-1.7,h+.6);
+  if(h>-.2||h<-6||inCoralJettyClearance(x,z))continue;const sx=1.5+rng()*2.6,sy=1.8+rng()*2.7,sz=1.4+rng()*2.4,y=Math.max(-1.7,h+.6);
   if(mooringSites.some(m=>Math.hypot(x-m.berth.x,z-m.berth.z)<115))continue;
   dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set((rng()-.5)*.3,rng()*6.28,0);dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix);blockers.push(new T.Box3(new T.Vector3(x-sx,y-sy,z-sz),new T.Vector3(x+sx,y+sy,z+sz)));
  }}mesh.count=count;mesh.computeBoundingSphere();root.add(mesh);

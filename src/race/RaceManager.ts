@@ -1,12 +1,17 @@
 import {Vector3} from 'three';
 import {crossesCheckpoint} from '../missions/MissionManager.ts';
 import type {Checkpoint} from '../missions/MissionManager.ts';
-import {islands} from '../world/WorldConfig.ts';
+import {islands,hotelIsland} from '../world/WorldConfig.ts';
 export const coral=islands.find(d=>d.id==='coral')!;
-const cove=islands.find(d=>d.id==='cove')!,pine=islands.find(d=>d.id==='pine')!,lighthouse=islands.find(d=>d.id==='lighthouse')!;
-const corners=[[-4750,180,-2000],[cove.x-700,260,cove.z+650],[pine.x+800,270,pine.z+650],[lighthouse.x+500,210,lighthouse.z-650]];
-export const raceCourse:Checkpoint[]=corners.map(([x,y,z],i)=>{const previous=i?corners[i-1]:[coral.x-450,0,coral.z-450];return{name:i===0?'出发航门':i===corners.length-1?'灯塔外海终点':'海上航门 '+i,position:new Vector3(x,y,z),normal:new Vector3(x-previous[0],0,z-previous[2]).normalize(),radius:110};});
-export const raceLaunch=new Vector3(coral.x-450,0,coral.z-450);
+export const raceLaunch=new Vector3(coral.x-1200,0,coral.z-1200);
+// Fly over all seven inhabited/natural islands, with clearance above roofs and terrain.
+const stops=[coral,hotelIsland,...['cove','pine','harbor','town','lighthouse'].map(id=>islands.find(d=>d.id===id)!)];
+export const raceCourse:Checkpoint[]=stops.map((island,i)=>{
+ const position=new Vector3(island.x,i===0?220:310,island.z);
+ const previous=i?stops[i-1]:{x:raceLaunch.x,z:raceLaunch.z};
+ return{name:(i===0?'起点 · ':i===stops.length-1?'终点 · ':'')+island.name+'上空',
+  position,normal:new Vector3(position.x-previous.x,0,position.z-previous.z).normalize(),radius:130};
+});
 export const raceHeading=Math.atan2(-(raceCourse[0].position.x-raceLaunch.x),-(raceCourse[0].position.z-raceLaunch.z));
 export class RaceInvitation{
  private armed=true;

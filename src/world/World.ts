@@ -13,7 +13,7 @@ import {SeaTraffic} from './SeaTraffic.ts';
 import * as T from 'three';
 import {Church} from './Church.ts';
 import {churchSite} from './ChurchSite.ts';
-import {Moorings} from './Moorings.ts';
+import {Moorings,inCoralJettyClearance} from './Moorings.ts';
 import {LighthouseBeacon} from './LighthouseBeacon.ts';
 import {CoastalDetail} from './CoastalDetail.ts';
 import {Seabirds} from './Seabirds.ts';
@@ -39,6 +39,7 @@ export class World {
  private channelMarkers:T.Mesh[]=[];private crowns:T.InstancedMesh[]=[];private rocks:T.InstancedMesh[]=[];private boats:T.Mesh[]=[];assetStatus='程序场景';
  private seaHour=12;private boatNight=nightApproach('harbor',new T.Vector3(islands[0].x-570,0,islands[0].z+1000),9999);private boatReturn?:T.CurvePath<T.Vector3>;private boatProgress=0;private boatClock=0;private boatDayOffset=0;
  private sailingBoat?:T.Mesh;private sailingBounds=new T.Box3();
+ private landingGrid=new Map<string,T.Box3[]>();private landingGridTime=-Infinity;private landingBlockCount=-1;
  private collisionDirection=new T.Vector3();private collisionPoint=new T.Vector3();private collisionRay=new T.Ray();
  private blockers:T.Box3[]=[]; private time=0;
  constructor(){
@@ -86,6 +87,7 @@ export class World {
   let rockPlaced=0;
   for(let attempt=0;rockPlaced<rockCount&&attempt<rockCount*8;attempt++){
    const a=rng()*Math.PI*2,r=d.id==='coral'?.65+rng()*.55:.93+rng()*.22,x=d.x+Math.cos(a)*d.rx*r,z=d.z+Math.sin(a)*d.rz*r,h=terrainHeight(d,x,z);
+   if(d.id==='coral'&&inCoralJettyClearance(x,z))continue;
    if(inTownHarborApproach(d,x,z,25)||inTakeoffChannel(d,x,z,45)||(d.id==='cove'&&x>d.x+130&&Math.abs(z-d.z+55)<85)||h>-.5)continue;
    const small=d.id==='coral',sx=(small?2:3)+rng()*(small?5:9),sy=(small?2:3)+rng()*(small?6:11),sz=(small?2:3)+rng()*(small?5:9);
    dummy.position.set(x,Math.max(-2,h-1),z);dummy.rotation.set(rng()*.5,rng()*6,rng()*.3);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();rocks.setMatrixAt(rockPlaced,dummy.matrix);
@@ -149,6 +151,19 @@ export class World {
   const direction=this.collisionDirection.subVectors(to,from),length=direction.length(),point=this.collisionPoint;
   const ray=this.collisionRay.set(from,direction.normalize());
   for(const box of this.blockers){if(box.containsPoint(from))return true;if(length>0&&ray.intersectBox(box,point)&&point.distanceTo(from)<=length+1)return true;}return false;
+ }
+ landingClearAt(x:number,z:number){
+  if(this.heightAt(x,z)>=-3)return false;
+  if(this.time<this.landingGridTime||this.time-this.landingGridTime>1||this.landingBlockCount!==this.blockers.length){
+   this.landingGrid.clear();this.landingBlockCount=this.blockers.length;this.landingGridTime=this.time;
+   for(const box of this.blockers){
+    if(box.isEmpty()||box.min.y>3||box.max.y<0)continue;
+    for(let gx=Math.floor((box.min.x-3)/80);gx<=Math.floor((box.max.x+3)/80);gx++)for(let gz=Math.floor((box.min.z-3)/80);gz<=Math.floor((box.max.z+3)/80);gz++){
+     const key=gx+'/'+gz,list=this.landingGrid.get(key)??[];list.push(box);this.landingGrid.set(key,list);
+    }
+   }
+  }
+  return !(this.landingGrid.get(Math.floor(x/80)+'/'+Math.floor(z/80))??[]).some(box=>x>=box.min.x-3&&x<=box.max.x+3&&z>=box.min.z-3&&z<=box.max.z+3);
  }
  landingWaterAt(position:T.Vector3,heading:number,speed:number){
   const overWater=this.heightAt(position.x,position.z)<-2,distance=Math.max(80,Math.min(240,speed*5)),dx=-Math.sin(heading),dz=-Math.cos(heading);
