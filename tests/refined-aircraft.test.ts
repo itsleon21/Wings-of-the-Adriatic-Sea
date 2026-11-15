@@ -16,7 +16,7 @@ test('reference proportions retain a long enclosed nacelle and a slender level-d
  const wing=primitives.find((p:{material:number})=>gltf.materials[p.material].name==='Wing lacquer');const wingBounds=gltf.accessors[wing.attributes.POSITION];assert.ok(bounds.min[1]>wingBounds.max[1],'cowling clears the upper wing surface');
  const prop=gltf.nodes.find((node:{name:string})=>node.name==='PropellerPivot');assert.ok(prop.translation[2]<wingBounds.min[2]-.25,'propeller sweep sits ahead of the wing leading edge');
  const hull=primitives.find((p:{material:number})=>gltf.materials[p.material].name==='Hull lacquer');const hullBounds=gltf.accessors[hull.attributes.POSITION];const length=hullBounds.max[2]-hullBounds.min[2],height=hullBounds.max[1]-hullBounds.min[1];assert.ok(length>8.4&&length<8.6,'the body is approximately 8.5 meters long');assert.ok(height/length>.12&&height/length<.17,'the hull stays slender in side view');
- const wingGap=wingBounds.max[1]-hullBounds.max[1],engineGap=bounds.min[1]-wingBounds.max[1];assert.ok(wingGap>.4&&wingGap<.7,'the wing sits close above the hull deck');assert.ok(engineGap>.02&&engineGap<.2,'the engine uses short supports above the wing');
+ const wingGap=wingBounds.max[1]-hullBounds.max[1],engineGap=bounds.min[1]-wingBounds.max[1];assert.ok(wingGap>1.05&&wingGap<1.35,'the raised wing leaves a cockpit sight corridor above the bow');assert.ok(engineGap>.02&&engineGap<.2,'the engine uses short supports above the wing');
  const floats=primitives.find((p:{material:number})=>gltf.materials[p.material].name==='Float lacquer');const floatBounds=gltf.accessors[floats.attributes.POSITION];assert.ok(floatBounds.min[1]>hullBounds.min[1]+.2,'wing floats sit above the central boat keel');
 });
 function decodedMeshes(source=primitives){
@@ -41,9 +41,9 @@ test('cockpit has a recessed floor and retains an intact outer hull',()=>{
 });
 test('engine nose is closed and side cooling ports are recessed',()=>{
  const meshes=decodedMeshes(gltf.meshes[engine.mesh].primitives);
- const nose=new T.Raycaster(new T.Vector3(.25,1.45,-4),new T.Vector3(0,0,1),0,5).intersectObjects(meshes);
+ const nose=new T.Raycaster(new T.Vector3(.25,2.10,-4),new T.Vector3(0,0,1),0,5).intersectObjects(meshes);
  assert.ok(nose.length>0&&nose[0].point.z< -2,'the nacelle has a closed front shoulder');
- const port=new T.Raycaster(new T.Vector3(-1,1.27,-1.299),new T.Vector3(1,0,0),0,2).intersectObjects(meshes);
+ const port=new T.Raycaster(new T.Vector3(-1,1.92,-1.299),new T.Vector3(1,0,0),0,2).intersectObjects(meshes);
  assert.ok(port.length>0&&port[0].point.x>-.35,'the cooling port opens into the dark internal block');dispose(meshes);
 });
 test('paint normal maps have UVs and tangents and fit the browser asset budget',()=>{

@@ -5,7 +5,7 @@ import {buildCoveArch,insideCoveArch} from '../src/world/CoveIsland.ts';
 test('harbor town rises gradually from a low quay to broad inland terraces',()=>{
  assert.deepEqual([30,120,220,330,450].map(harborTerraceHeight),[4.5,16,34,58,90]);
  const d=islands[0];let previous=terrainHeight(d,d.x,d.z+30);
- for(let z=25;z>=-350;z-=5){const h=terrainHeight(d,d.x,d.z+z);assert.ok(h>=previous-.01);assert.ok(h-previous<3);previous=h;}
+ for(let z=25;z>=-d.rz*.70;z-=5){const h=terrainHeight(d,d.x,d.z+z);assert.ok(h>=previous-.01);assert.ok(h-previous<3);previous=h;}
 });
 test('terrain overlays stay above the actual rendered triangles across grid diagonals',()=>{
  const d=islands[0],positions:number[]=[],colors:number[]=[];

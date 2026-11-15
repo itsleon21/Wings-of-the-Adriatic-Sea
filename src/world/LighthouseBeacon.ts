@@ -25,7 +25,7 @@ varying vec3 vLocal;varying vec3 vEye;uniform float strength;void main(){
    const spot=new T.SpotLight(0xffe5ad,0,1400,.085,.7,2);spot.target.position.set(0,0,-1200);pivot.add(spot,spot.target);this.lights.push(spot);
   }
  }
- update(dt:number,nightness:number){this.angle=(this.angle+dt*.22)%(Math.PI*2);this.root.rotation.y=this.angle;const strength=T.MathUtils.smoothstep(nightness,.15,.75);for(const m of this.cones)m.uniforms.strength.value=strength;for(const l of this.lights)l.intensity=strength*85000;this.lens.emissiveIntensity=.2+strength*5;}
+ update(dt:number,nightness:number){this.angle=(this.angle+dt*.075)%(Math.PI*2);this.root.rotation.y=this.angle;const strength=T.MathUtils.smoothstep(nightness,.15,.75);for(const m of this.cones)m.uniforms.strength.value=strength;for(const l of this.lights)l.intensity=strength*85000;this.lens.emissiveIntensity=.2+strength*5;}
  get beamDirection(){return new T.Vector3(-Math.sin(this.angle)*Math.cos(.17),-Math.sin(.17),-Math.cos(this.angle)*Math.cos(.17));}
  get rotation(){return this.angle;}
 }

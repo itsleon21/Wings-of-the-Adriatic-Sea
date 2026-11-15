@@ -1,18 +1,23 @@
+import {RaceControls} from '../src/race/RaceControls.ts';
 import {RaceGhost} from '../src/race/RaceGhost.ts';
 import {test} from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import * as T from 'three';
 import {RaceManager,RaceInvitation,raceCourse,raceLaunch,raceHeading} from '../src/race/RaceManager.ts';
 import {RaceFireworks} from '../src/race/RaceVisual.ts';import {raceAircraftCatalog} from '../src/race/RaceAircraft.ts';import {aircraftCatalog,isAircraftId,resolveAircraftId} from '../src/aircraft/AircraftCatalog.ts';import {allLandforms,terrainHeight} from '../src/world/WorldConfig.ts';import {FlightController,neutralInput} from '../src/aircraft/FlightController.ts';import {sampleOceanWaves} from '../src/world/OceanWaves.ts';
 const cross=(race:RaceManager,index:number,dt=.1)=>{const c=raceCourse[index];return race.update(dt,c.position.clone().addScaledVector(c.normal,-300),c.position.clone().addScaledVector(c.normal,300));};
 test('coral jetty invitation triggers once on approach, declines quietly and rearms only after leaving',()=>{const i=new RaceInvitation();assert.equal(i.update(200,0),false);assert.equal(i.update(40,120),false);assert.equal(i.update(100,40),true);assert.equal(i.update(20,0),false);i.update(400,0);assert.equal(i.update(50,0),true);const returning=new RaceInvitation(true);assert.equal(returning.update(0,0),false);returning.update(400,0);assert.equal(returning.update(20,0),true);});
-test('three ordered laps, forward crossings, pre-start timing, failure and clean retries',()=>{
- const r=new RaceManager();r.update(3,new T.Vector3(),new T.Vector3());assert.equal(r.state,'READY');r.update(9,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,0);cross(r,1);assert.equal(r.state,'READY');cross(r,0);assert.equal(r.state,'RUNNING');assert.equal(r.index,1);
- const c=raceCourse[1];r.update(.1,c.position.clone().addScaledVector(c.normal,1),c.position.clone().addScaledVector(c.normal,-1));assert.equal(r.index,1);
- for(let lap=0;lap<3;lap++)for(const i of[1,2,3,0])assert.equal(cross(r,i),true);
- assert.equal(r.state,'COMPLETED');assert.equal(r.lap,3);assert.equal(r.splits.length,3);const elapsed=r.elapsed;r.update(100,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,elapsed);r.reset();assert.equal(r.state,'COUNTDOWN');assert.equal(r.elapsed,0);assert.equal(r.splits.length,0);r.fail();assert.equal(r.state,'FAILED');assert.equal(cross(r,0),false);
+test('simultaneous start, ordered point-to-point gates, finish and clean retries',()=>{
+ const r=new RaceManager();r.update(3,new T.Vector3(),new T.Vector3());assert.equal(r.state,'RUNNING');r.update(1,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,1);cross(r,1);assert.equal(r.index,0);
+ for(let i=0;i<raceCourse.length;i++)assert.equal(cross(r,i),true);assert.equal(r.state,'COMPLETED');assert.equal(r.index,raceCourse.length-1);assert.equal(r.lap,1);assert.equal(r.sectors.length,raceCourse.length);const elapsed=r.elapsed;r.update(100,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,elapsed);r.reset();assert.equal(r.state,'COUNTDOWN');assert.equal(r.elapsed,0);r.fail();assert.equal(cross(r,0),false);
 });
 test('race gate and connecting sea corridors stay clear of every island and reef',()=>{
- for(let i=0;i<4;i++){const a=raceCourse[i],b=raceCourse[(i+1)%4];for(let t=0;t<=1;t+=.01){const p=a.position.clone().lerp(b.position,t);for(const d of allLandforms)assert.ok(terrainHeight(d,p.x,p.z)<-3);}}
- for(let i=0;i<60;i++){const p=raceLaunch.clone().lerp(raceCourse[0].position,i/59);for(const d of allLandforms)assert.ok(terrainHeight(d,p.x,p.z)<-3);}
+ const route=[raceLaunch,...raceCourse.map(gate=>gate.position)];
+ for(let leg=1;leg<route.length;leg++){
+  const start=route[leg-1],end=route[leg],normal=new T.Vector3(end.z-start.z,0,start.x-end.x).normalize();
+  for(let sample=0;sample<=100;sample++)for(const offset of [-100,0,100]){
+   const point=start.clone().lerp(end,sample/100).addScaledVector(normal,offset);
+   for(const island of allLandforms)assert.ok(terrainHeight(island,point.x,point.z)<-3,`leg ${leg} intersects ${island.id} at sample ${sample}`);
+  }
+ }
 });
 test('dedicated racing catalog does not leak into free exploration selection',()=>{assert.equal(aircraftCatalog.length,3);assert.equal(raceAircraftCatalog.length,3);for(const a of raceAircraftCatalog){assert.equal(isAircraftId(a.id),false);assert.equal(resolveAircraftId('?aircraft='+a.id,null),'redwing');assert.equal(a.tuning.aerobatics,false);}assert.equal(new Set(raceAircraftCatalog.map(a=>a.tuning.turnRate)).size,3);});
 test('all three racers physically take off on the moving sea and reset at their own float waterline',()=>{
@@ -39,14 +44,14 @@ test('exported racing silhouettes retain metre-scale reference dimensions and co
  }
 });
 
-test('each racer completes all three laps with flight controls, on the real sea, without terrain collisions',()=>{
+test('each racer completes the point-to-point course with assisted flight controls, on the real sea, without terrain collisions',()=>{
  const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
- for(const a of raceAircraftCatalog){const f=new FlightController(false,a.tuning),r=new RaceManager(),ghost=new RaceGhost(a.id);f.setWaterSurface((x,z,t)=>sampleOceanWaves(x,z,t,.25));f.moorAt(raceLaunch.x,raceLaunch.z,raceHeading);r.update(3,f.position,f.position);
+ for(const a of raceAircraftCatalog){const f=new FlightController(false,a.tuning),r=new RaceManager(),ghost=new RaceGhost(a.id),controls=new RaceControls();f.setWaterSurface((x,z,t)=>sampleOceanWaves(x,z,t,.25));f.moorAt(raceLaunch.x,raceLaunch.z,raceHeading);r.update(3,f.position,f.position);ghost.record(0,f.position,f.orientation,false,[]);
   for(let frame=0;frame<60*900&&r.state!=='COMPLETED';frame++){
    const p=r.current!;let input={pitch:1,roll:0,yaw:0,throttle:1};if(f.state==='AIRBORNE'){
     const dx=p.position.x-f.position.x,dz=p.position.z-f.position.z,desired=Math.atan2(-dx,-dz),error=Math.atan2(Math.sin(desired-f.heading),Math.cos(desired-f.heading));
     input={pitch:clamp((p.position.y-f.position.y)*.018-f.velocity.y*.13,-.18,.20)/a.tuning.maxPitch,roll:clamp(-error*2,-1,1),yaw:0,throttle:clamp((.72-f.throttle)*5,-1,1)};
-   }f.update(1/60,input);r.update(1/60,f.previousPosition,f.position);if(r.state==='RUNNING'||r.state==='COMPLETED')ghost.record(r.elapsed,f.position,f.orientation,r.state==='COMPLETED',r.sectors);assert.notEqual(f.state,'CRASHED',a.id);for(const d of allLandforms)assert.ok(f.position.y>terrainHeight(d,f.position.x,f.position.z)+1,a.id);
-  }assert.equal(r.state,'COMPLETED',a.id+' gate '+r.index+' lap '+r.lap);assert.equal(r.lap,3);assert.ok(ghost.best,a.id+' complete ghost');assert.equal(ghost.best.time,r.elapsed);assert.equal(ghost.best.sectors.length,12);ghost.dispose();
+   }f.update(1/60,controls.update(1/60,input,f));r.update(1/60,f.previousPosition,f.position);if(r.state==='RUNNING'||r.state==='COMPLETED')ghost.record(r.elapsed,f.position,f.orientation,r.state==='COMPLETED',r.sectors);assert.notEqual(f.state,'CRASHED',a.id);for(const d of allLandforms)assert.ok(f.position.y>terrainHeight(d,f.position.x,f.position.z)+1,a.id);
+  }assert.equal(r.state,'COMPLETED',a.id+' gate '+r.index+' lap '+r.lap);assert.equal(r.lap,1);assert.ok(ghost.best,a.id+' complete ghost');assert.equal(ghost.best.time,r.elapsed);assert.equal(ghost.best.sectors.length,raceCourse.length);ghost.dispose();
  }
 });

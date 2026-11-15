@@ -5,8 +5,8 @@ import {createArchipelago,islands,SeaSeed,WorldBounds} from '../src/world/WorldC
 import {addMediterraneanPlants,plantSpecies} from '../src/world/MediterraneanPlants.ts';
 import {World} from '../src/world/World.ts';
 
-test('five weather presets transition smoothly and exactly at 30, 60 and 120 FPS',()=>{
- assert.equal(weatherIds.length,5);assert.equal(resolveWeather('invalid'),'sunny');
+test('four weather presets transition smoothly and exactly at 30, 60 and 120 FPS',()=>{
+ assert.equal(weatherIds.length,4);assert.equal(resolveWeather('invalid'),'sunny');assert.equal(resolveWeather('overcast'),'cloudy');assert.equal(weatherIds.includes('overcast' as never),false);
  for(const fps of[30,60,120])for(const id of weatherIds){const w=new WeatherController();w.setAutomatic(false);w.select(id);
   for(let i=0;i<fps*8;i++){w.update(1/fps);for(const [key,value] of Object.entries(w.current)){if(key!=='tint')assert.ok(Number.isFinite(value));}assert.ok(w.current.fogNear<w.current.fogFar);assert.ok(w.current.rain>=0&&w.current.rain<=1);}
   for(const key of['rain','fogFar','coverage','sun'] as const)assert.ok(Math.abs(w.current[key]-weatherPresets[id][key])<1e-7);assert.equal(w.settled,true);
@@ -33,7 +33,7 @@ test('seeded island scatter is reproducible, changes with seed, and preserves sa
  }
  assert.ok(new Set(islands.map(d=>d.x)).size===6&&new Set(islands.map(d=>d.z)).size===6);
 });
-test('Mediterranean biomes contain seven added species and avoid planted trees on coral cay',()=>{
+test('Mediterranean biomes contain thirteen added species and avoid planted trees on coral cay',()=>{
  const root=new T.Group(),counts=addMediterraneanPlants(root,()=>false);
  for(const species of plantSpecies){assert.ok(root.getObjectByName(`Mediterranean vegetation / ${species}`));assert.ok(Object.values(counts).reduce((sum,c)=>sum+(c[species]??0),0)>0);}
  for(const species of['cypress','olive','holm-oak'] as const)assert.equal(counts.coral[species],0);
@@ -42,4 +42,12 @@ test('Mediterranean biomes contain seven added species and avoid planted trees o
 test('all heightfield islands use smooth finite normals and continuous surface materials',()=>{
  const world=new World();let found=0;
  world.root.traverse(o=>{if(!(o instanceof T.Mesh)||!o.name.endsWith('/ continuous limestone terrain'))return;found++;const m=o.material as T.MeshStandardMaterial;assert.equal(m.flatShading,false);assert.equal(m.vertexColors,false);const n=o.geometry.attributes.normal;for(const v of n.array)assert.ok(Number.isFinite(v));});assert.equal(found,9);
+});
+
+test('rain has wind drift at rest and follows air velocity relative to the moving aircraft',async()=>{
+ const {relativeRainVelocity}=await import('../src/rendering/WeatherEffects.ts');
+ const still=relativeRainVelocity(.85),flying=relativeRainVelocity(.85,new T.Vector3(90,4,-35));
+ assert.ok(still.x>0&&still.z>0&&still.y<0);assert.ok(flying.x<0&&flying.z>still.z&&flying.y<still.y);
+ assert.ok(flying.clone().add(new T.Vector3(90,4,-35)).distanceTo(still)<1e-8);
+ const fast=relativeRainVelocity(1,new T.Vector3(1000,-1000,-1000));assert.ok(fast.toArray().every(Number.isFinite));assert.ok(Math.abs(fast.x)<=155&&Math.abs(fast.z)<=155&&fast.y<0);
 });

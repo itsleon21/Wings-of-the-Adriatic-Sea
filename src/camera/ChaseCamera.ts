@@ -5,7 +5,7 @@ export const cameraViews=[{id:'chase',name:'追尾'},{id:'wide',name:'远距追�
 export class ChaseCamera {
   private index=0;private targetPosition=new Vector3();private look=new Vector3();private forward=new Vector3();private right=new Vector3();private desired=new Vector3();
   private lastAnchor=new Vector3();private anchored=false;
-  private lookYaw=0;private lookPitch=0;private desiredYaw=0;private desiredPitch=0;private movement=true;
+  private lookYaw=0;private lookPitch=0;private desiredYaw=0;private desiredPitch=0;private movement=false;
   get view(){return cameraViews[this.index];}
   lookAround(dx:number,dy:number){if(this.view.id!=='cockpit')return;this.desiredYaw=MathUtils.clamp(this.desiredYaw-dx*.004,-1.8,1.8);this.desiredPitch=MathUtils.clamp(this.desiredPitch-dy*.004,-.65,.8);}
   recenter(){this.desiredYaw=this.desiredPitch=0;}
@@ -29,8 +29,9 @@ export class ChaseCamera {
       const attitude=pose?.quaternion??flight.orientation,position=pose?.position??flight.position;
       const blend=immediate?1:1-Math.exp(-12*dt);this.lookYaw=MathUtils.lerp(this.lookYaw,this.desiredYaw,blend);this.lookPitch=MathUtils.lerp(this.lookPitch,this.desiredPitch,blend);
       // Deterministic and sub-centimetre: disabled by the comfort setting, never modifies flight physics.
-      const vibration=this.movement?Math.sin(flight.simulationTime*31)*.003*flight.throttle:0;
+      const vibration=this.movement?Math.sin(flight.simulationTime*31)*.003*flight.throttle+Math.sin(flight.simulationTime*25)*flight.waterImpact*.012:0;
       const head=new Quaternion().setFromEuler(new Euler(this.lookPitch+vibration,this.lookYaw,0,'YXZ')).premultiply(attitude);
+      // Eye stays above the seat cushion, behind the windshield; never move it to the bow.
       const eye=new Vector3().fromArray(getAircraft(flight.tuning.id).cockpitEye).applyQuaternion(attitude).add(position);
       this.camera.position.copy(eye);this.forward.set(0,0,-1).applyQuaternion(head);this.camera.up.set(0,1,0).applyQuaternion(head);this.camera.lookAt(eye.clone().addScaledVector(this.forward,100));this.camera.near=.08;this.camera.fov=75;this.camera.updateProjectionMatrix();return;
     }

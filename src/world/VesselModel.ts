@@ -34,9 +34,9 @@ export function buildVessel(kind:VesselKind,variant:number,lamps:T.Material){
   add(new T.BoxGeometry(2.9,.9,4.6),cream,0,1.85,1);add(new T.BoxGeometry(2.5,.10,4.1),wood,0,2.36,1);for(const side of[-1,1])for(const z of[.1,1.8])add(new T.BoxGeometry(.04,.33,.6),glass,side*1.47,1.95,z);
   beamBetween(new T.Vector3(0,1.5,0),new T.Vector3(0,16,0),.095,cream);beamBetween(new T.Vector3(0,2.5,0),new T.Vector3(0,2.5,5.8),.075,wood);
   for(const side of[-1,1]){line([new T.Vector3(side*beam*.8,1.65,1.8),new T.Vector3(0,15.6,0),new T.Vector3(0,1.8,side<0?-length*.85:length*.85)],.018,dark);}
-  const cloth=new T.MeshStandardMaterial({color:variant%2?0xeabc4e:0xf0a52e,roughness:.88,side:T.DoubleSide});
-  for(const side of[-1,1]){const v:number[]=[],f:number[]=[];for(let row=0;row<=12;row++){const t=row/12,y=2.55+t*12.8,width=(1-t)*(side>0?6:4.9);for(let col=0;col<=10;col++){const u=col/10;v.push(Math.sin(u*Math.PI)*Math.sin((1-t)*Math.PI)*.85,y,side*width*u);}}for(let row=0;row<12;row++)for(let col=0;col<10;col++){const a=row*11+col;f.push(a,a+1,a+11,a+1,a+12,a+11);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setIndex(f);geo.computeVertexNormals();add(geo,cloth).name='Amber canvas sail';
-  const seams=new T.LineSegments(new T.EdgesGeometry(geo,65),new T.LineBasicMaterial({color:0xbb7a2e}));root.add(seams);}
+  const cloth=new T.MeshStandardMaterial({color:[0xf0a52e,0xe7dfc5,0xa55743,0x6f99aa,0x78947a,0xd3aa94,0xd1b86b][((variant*5+3)%7+7)%7],roughness:.88,side:T.DoubleSide});
+  for(const side of[-1,1]){const v:number[]=[],f:number[]=[];for(let row=0;row<=12;row++){const t=row/12,y=2.55+t*12.8,width=(1-t)*(side>0?6:4.9);for(let col=0;col<=10;col++){const u=col/10;v.push(Math.sin(u*Math.PI)*Math.sin((1-t)*Math.PI)*.85,y,side*width*u);}}for(let row=0;row<12;row++)for(let col=0;col<10;col++){const a=row*11+col;f.push(a,a+1,a+11,a+1,a+12,a+11);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setIndex(f);geo.computeVertexNormals();add(geo,cloth).name='Coloured canvas sail';
+  const seams=new T.LineSegments(new T.EdgesGeometry(geo,65),new T.LineBasicMaterial({color:0x857d6d}));root.add(seams);}
  }
  for(const side of[-1,1])add(new T.SphereGeometry(.13,6,4),new T.MeshBasicMaterial({color:side<0?0xc73b24:0x54a66b}),side*beam*.8,3.4,0);
  add(new T.BoxGeometry(.8,.4,.05),lamps,0,sailing?2.1:3,-1.72);

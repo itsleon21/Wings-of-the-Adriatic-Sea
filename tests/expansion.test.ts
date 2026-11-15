@@ -26,8 +26,8 @@ test('MC72 GLB has complete movable controls, AO and two coaxial propeller nodes
   assert.equal(names.filter((n:string)=>n.startsWith('PropellerPivot')).length,2);assert.ok(g.meshes.some((m:{primitives:{attributes:Record<string,number>}[]})=>m.primitives.some(p=>p.attributes.COLOR_0!==undefined)));assert.ok(data.length<5*1024*1024);
  }
 });
-test('all six moorings have deep, unobstructed berths and an open water approach',()=>{
- const world=new World();assert.equal(mooringSites.length,6);
+test('all seven moorings have deep, unobstructed berths and an open water approach',()=>{
+ const world=new World();assert.equal(mooringSites.length,7);
  for(const s of mooringSites){const p=s.berth.clone();p.y=1.2;assert.equal(world.collides(p,p),false,s.id);for(const sideways of[-6,0,6])for(const lengthwise of[-4.25,0,4.25]){const edge=new T.Vector3(p.x+s.dz*sideways+s.dx*lengthwise,1.2,p.z-s.dx*sideways+s.dz*lengthwise);assert.equal(world.collides(edge,edge),false,s.id+' largest-aircraft clearance');}for(const d of islands)for(const t of[0,.3,.6,1])assert.ok(terrainHeight(d,p.x+s.dx*t*110,p.z+s.dz*t*110)<-3,s.id);const boat=new FlightController(false,getAircraft('mc72').tuning);boat.moorAt(p.x,p.z,s.heading);for(let i=0;i<240;i++)boat.update(1/60,neutralInput());assert.equal(boat.state,'ON_WATER');assert.ok(Math.hypot(boat.position.x-p.x,boat.position.z-p.z)<.001);}
 });
 test('time changes are frame independent, wrap midnight, and stop completely on pause',()=>{
@@ -42,3 +42,9 @@ test('both villages contain multiple compact hamlets separated by unbuilt gaps',
  // At least one island occupies the interior of the sea rather than all lying around a perimeter.
  assert.ok(islands.some(d=>d.id!=='harbor'&&Math.hypot(d.x,d.z)<1600));
 });
+
+test('automatic day-night cycle completes in 24 active minutes independently of frame rate',()=>{
+ for(const fps of [30,60,120]){const c=new TimeOfDay('noon');for(let i=0;i<fps*1440;i++)c.update(1/fps,true);assert.ok(Math.abs(c.hour-12)<1e-7);c.update(50,false);assert.ok(Math.abs(c.hour-12)<1e-7);}
+});
+
+test('sixty active real seconds advance exactly one game hour, with midnight wrap',()=>{const c=new TimeOfDay('night');c.update(60,true);assert.ok(Math.abs(c.hour)<1e-8);const before=c.hour;c.update(60,false);assert.equal(c.hour,before);});

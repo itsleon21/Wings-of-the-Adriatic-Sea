@@ -1,0 +1,7 @@
+/** Long user-supplied recording: browser range loading avoids a full decoded AudioBuffer. */
+export class StreamingHotelRadio{
+ readonly gain:GainNode;private media:HTMLAudioElement;private source:MediaElementAudioSourceNode;private context:AudioContext;private pending=false;private shouldPlay=false;private disposed=false;private retryAt=0;
+ constructor(context:AudioContext,output:AudioNode,url:string,media?:HTMLAudioElement){this.context=context;this.media=media??new Audio(url);this.media.preload='metadata';this.media.loop=true;this.source=context.createMediaElementSource(this.media);this.gain=context.createGain();this.gain.gain.value=0;this.source.connect(this.gain);this.gain.connect(output);}
+ update(active:boolean,level:number,paused:boolean){if(this.disposed)return;this.shouldPlay=active&&!paused;this.gain.gain.setTargetAtTime(active&&!paused?level:0,this.context.currentTime,.5);if(!active||paused){this.media.pause();if(!active&&Number.isFinite(this.media.duration))this.media.currentTime=0;return;}if(this.context.state==='running'&&this.media.paused&&!this.pending&&this.context.currentTime>=this.retryAt){this.pending=true;void this.media.play().catch(()=>{this.retryAt=this.context.currentTime+2;}).finally(()=>{this.pending=false;if(this.disposed||!this.shouldPlay)this.media.pause();});}}
+ dispose(){this.disposed=true;this.media.pause();this.media.removeAttribute('src');this.media.load();this.source.disconnect();this.gain.disconnect();}
+}

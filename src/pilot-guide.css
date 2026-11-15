@@ -1,0 +1,72 @@
+/* A landscape aero-club booklet: cream stock, printed rules, oxblood annotations. */
+#guide{box-sizing:border-box;width:min(1140px,calc(100vw - 40px));height:min(650px,calc(100dvh - 40px));max-height:none;overflow:hidden;padding:26px 34px 16px;background:linear-gradient(#f1ecdbdc,#eee7d4dc),#e8dfc5 url('/textures/chart-paper.svg') center/cover;color:#253c40;border:1px solid #a79670;box-shadow:0 22px 95px #061b2c80,inset 0 0 0 7px #efe9d5,inset 0 0 0 8px #9a987680}
+#guide[open]{display:flex;flex-direction:column}
+#guide .pilot-header{display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:3px double #657878;padding:0 0 16px}
+#guide .pilot-header small{font:9px Georgia,serif;letter-spacing:1.8px;color:#536867}
+#guide h2{font:36px/1.2 'Songti SC',Georgia,serif;letter-spacing:4px;margin:8px 0 0;color:#243d43}
+#guide .pilot-aircraft{text-align:right;font:18px 'Songti SC',Georgia,serif;margin-left:auto}
+#guide .pilot-aircraft span{display:block;margin-top:7px;font:10px 'PingFang SC',sans-serif;letter-spacing:1px;color:#667372}
+#guide #guide-close{align-self:flex-start;padding:5px 7px;border:1px solid #687b7766;color:#29434a;font:12px Georgia,serif}
+#guide .pilot-tabs{display:flex;gap:25px;border-bottom:1px solid #77867b70;margin:0 0 18px}
+#guide .pilot-tabs button{font:15px 'Songti SC',Georgia,serif;padding:12px 1px 10px;border-bottom:3px solid transparent;color:#566c6a}
+#guide .pilot-tabs button[aria-pressed=true]{border-color:#9a4d36;color:#873b2b}
+#guide .pilot-page{display:grid;grid-template-columns:.9fr 1.1fr;gap:34px;flex:1;min-height:0}
+#guide .pilot-page[hidden]{display:none}
+#guide .pilot-column+ .pilot-column{border-left:1px solid #77867b66;padding-left:30px}
+#guide h3{font:19px/1.4 'Songti SC',Georgia,serif;color:#273e43;margin:0 0 10px}
+#guide p{font:14px/1.85 'PingFang SC',sans-serif;margin:8px 0 18px;color:#344f50}
+#guide p strong{color:#8c3d2c;font-weight:600}
+#guide .pilot-speed{border-top:1px solid #74857a;border-bottom:1px solid #74857a;padding:14px 0;margin:14px 0}
+#guide .pilot-speed strong{display:block;font:52px/1 Georgia,serif;letter-spacing:-1px;color:#873f2d}
+#guide .pilot-speed span{display:block;font-size:10px;letter-spacing:1px;margin-top:8px}
+#guide .pilot-limits{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:17px 0}
+#guide .pilot-limits b{font:16px Georgia,serif;display:block;white-space:nowrap}
+#guide .pilot-limits span{font-size:10px;display:block;margin-top:7px;color:#526a67}
+#guide .pilot-warning{border-left:2px solid #a5563d;padding-left:12px;font-size:11px}
+#guide .pilot-steps{list-style:none;counter-reset:landing;padding:0;margin:0}
+#guide .pilot-steps li{counter-increment:landing;position:relative;padding-left:36px;margin-bottom:16px}
+#guide .pilot-steps li:before{content:counter(landing);position:absolute;left:0;top:1px;width:23px;height:23px;text-align:center;border:1px solid #78897e;border-radius:50%;font:15px/23px Georgia,serif}
+#guide .pilot-steps h3{font-size:18px;margin-bottom:3px}
+#guide .pilot-steps p{margin:0;font-size:14px}
+#guide .pilot-note{font-size:10px;color:#63746e;border-top:1px solid #89978360;padding-top:10px}
+#guide .pilot-keys{gap:0;margin:0;grid-template-columns:1fr 1fr}
+#guide .pilot-keys>span{display:flex;flex-direction:column;align-items:flex-start;padding:7px 5px;gap:5px;font-size:11px}
+#guide .pilot-keys b{font-weight:400}
+#guide kbd{font:11px Georgia,serif;padding:2px 5px;border:1px solid #74858060;border-radius:1px;background:#f8f0d9b0;color:#243c42}
+#guide .pilot-quality{display:flex;flex-wrap:wrap;gap:8px;border:0;margin:20px 0 30px;padding:0}
+#guide .pilot-quality legend{font-size:11px;color:#617572;margin-bottom:12px}
+#guide .pilot-quality input{position:absolute;opacity:0;width:1px;height:1px}
+#guide .pilot-quality span{display:block;padding:10px 17px;border:1px solid #7c8a7b;font-size:13px;cursor:pointer}
+#guide .pilot-quality input:checked+span{background:#29434a;color:#f4ebd1}
+#guide .pilot-quality input:focus-visible+span{outline:2px solid #a75337;outline-offset:3px}
+#guide .pilot-check{display:flex;gap:10px;align-items:center;margin:19px 0;font-size:12px}
+#guide input{accent-color:#34595a}
+#guide .volume-option{font-size:12px;gap:12px;margin:23px 0}
+#guide .volume-option input{min-width:60px;width:60%}
+#guide .performance-readout{font:10px/1.5 Georgia,serif;margin-top:26px}
+#guide .pilot-footer{display:flex;justify-content:space-between;gap:15px;border-top:3px double #657878;padding-top:10px;margin-top:15px;font-size:10px;color:#5c706e}
+@media(max-height:720px),(max-width:950px){
+ #guide{padding:18px 24px 12px}
+ #guide .pilot-header{padding-bottom:10px}#guide h2{font-size:28px;margin-top:5px}
+ #guide .pilot-tabs{margin-bottom:12px}#guide .pilot-tabs button{padding:9px 1px 7px;font-size:14px}
+ #guide .pilot-page{gap:22px}#guide .pilot-column+.pilot-column{padding-left:20px}
+ #guide h3{font-size:17px;margin-bottom:7px}#guide p{font-size:12px;line-height:1.7;margin-bottom:12px}
+ #guide .pilot-speed{padding:10px 0;margin:10px 0}#guide .pilot-speed strong{font-size:42px}
+ #guide .pilot-limits{margin:12px 0;gap:8px}#guide .pilot-limits b{font-size:14px}
+ #guide .pilot-steps li{margin-bottom:12px;padding-left:31px}#guide .pilot-steps h3{font-size:16px}#guide .pilot-steps p{font-size:12px;line-height:1.75}
+ #guide .pilot-keys>span{padding:5px;gap:4px;font-size:10px}
+ #guide .pilot-footer{margin-top:10px;padding-top:7px}#guide .pilot-quality{margin:12px 0 20px}
+}
+@media(max-width:650px){
+ #guide{width:calc(100vw - 16px);height:calc(100dvh - 20px);padding:18px}
+ #guide .pilot-aircraft{font-size:13px}#guide .pilot-aircraft span{display:none}
+ #guide .pilot-header{gap:8px}#guide .pilot-header small{font-size:6px;letter-spacing:.7px}#guide h2{font-size:24px}
+ #guide .pilot-page{grid-template-columns:1fr;gap:12px;align-content:start}
+ #guide .pilot-column+.pilot-column{padding-left:0;border-left:0}
+ #guide .pilot-approach h3{display:none}#guide .pilot-speed{float:left;width:46%;margin:0 12px 8px 0}
+ #guide .pilot-speed strong{font-size:32px}#guide .pilot-limits{grid-template-columns:1fr;margin:0;gap:5px}
+ #guide .pilot-limits div{display:flex;gap:8px;align-items:center}#guide .pilot-limits span{margin:0}
+ #guide .pilot-approach>p{clear:both;margin:5px 0;font-size:10px}
+ #guide .pilot-steps li{margin-bottom:10px}#guide .pilot-keys{grid-template-columns:repeat(3,1fr)}
+ #guide .pilot-keys>span{font-size:9px;padding:4px}#guide kbd{font-size:10px}
+}

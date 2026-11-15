@@ -18,11 +18,11 @@ export function buildHarborDetail(d:IslandDefinition,layout:SettlementLayout){
   const c=Math.cos(p.angle),s=Math.sin(p.angle),local=(x:number,y:number,z:number)=>[p.x+x*c+z*s,p.ground+y,p.z-x*s+z*c] as const;
   const box=(x:number,y:number,z:number,w:number,h:number,depth:number,color:number)=>add(new T.BoxGeometry(w,h,depth),color,...local(x,y,z),p.angle);
   // Small balcony boxes, glazed storefront boards and striped canvas carry detail where a low pass sees it.
-  const front=p.depth*.53,canopyColor=[0x8b9d89,0xc3a368,0xb7684c][decorated%3];
+  const front=p.depth*.53,canopyColor=(d.id==='town'?[0x628c84,0xad624c,0xc9964e]:[0x74837d,0x998764,0x687e86])[decorated%3];
   if(p.kind!=='HouseFisher'){
    for(let stripe=0;stripe<8;stripe++){
-    box(-2.1+stripe*.6,3.15,front+.65,.61,.16,1.6,stripe%2?0xd9cfad:canopyColor);
-    box(-2.1+stripe*.6,2.93,front+1.4,.61,.45,.10,stripe%2?0xd9cfad:canopyColor);
+    box(-2.1+stripe*.6,3.15,front+.65,.60,.16,1.6,stripe%2?0xd9cfad:canopyColor);
+    box(-2.1+stripe*.6,2.93,front+1.4,.60,.45,.10,stripe%2?0xd9cfad:canopyColor);
    }
    box(p.width*.29,2.35,front+.2,1.6,.95,.22,0x5c7168);box(p.width*.29,2.35,front+.34,1.25,.08,.03,0xd7c292);
   }

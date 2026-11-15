@@ -1,3 +1,9 @@
+import {nightApproach,wantsNightMooring} from './HarborNavigation.ts';
+import {CoastalLandmarks} from './CoastalLandmarks.ts';
+import {coastalLandmarkOccupied} from './CoastalLandmarkSites.ts';
+import {lighthouseArchitecture} from './LighthouseArchitecture.ts';
+import {CoveCamp} from './CoveCamp.ts';
+import {GardenHotel} from './GardenHotel.ts';
 import {TownHarborLights} from './TownHarborLights.ts';
 import {inTownHarborApproach} from './IslandDetails.ts';
 import {IslandIdentity} from './IslandIdentity.ts';
@@ -6,6 +12,7 @@ import {distantIslandGeometry,addReefRocks} from './SmallIslands.ts';
 import {SeaTraffic} from './SeaTraffic.ts';
 import * as T from 'three';
 import {Church} from './Church.ts';
+import {churchSite} from './ChurchSite.ts';
 import {Moorings} from './Moorings.ts';
 import {LighthouseBeacon} from './LighthouseBeacon.ts';
 import {CoastalDetail} from './CoastalDetail.ts';
@@ -13,7 +20,7 @@ import {Seabirds} from './Seabirds.ts';
 import { islands,reefs,allLandforms,terrainHeight,random,terrainSegments } from './WorldConfig.ts';
 import type { IslandDefinition } from './WorldConfig.ts';
 import {buildCoveArch,insideCoveArch,addCoveLandmarks} from './CoveIsland.ts';
-import {addCoralBiome,addOutpostIslands} from './ArchipelagoDetails.ts';
+import {addCoralBiome,addCoralReefLinks,addOutpostIslands} from './ArchipelagoDetails.ts';
 import {addMediterraneanPlants} from './MediterraneanPlants.ts';
 import {WaterInteraction} from './WaterInteraction.ts';
 import { Ocean } from './Ocean.ts';
@@ -23,22 +30,24 @@ import {buildSettlementLayout,layoutOccupied} from './SettlementLayout.ts';
 import {SettlementRenderer} from './SettlementRenderer.ts';
 import {terrainSurfaceHeight} from './TerrainSurface.ts';
 export class World {
- private townHarborLights=new TownHarborLights();private traffic=new SeaTraffic();private outpostWindows:T.MeshStandardMaterial[]=[];readonly moorings:Moorings;private churches:Church[]=[];private beacon=new LighthouseBeacon();
+ private landmarks:CoastalLandmarks;private camp=new CoveCamp();private hotel:GardenHotel;private townHarborLights=new TownHarborLights();private traffic=new SeaTraffic();private outpostWindows:T.MeshStandardMaterial[]=[];readonly moorings:Moorings;private churches:Church[]=[];private beacon=new LighthouseBeacon();
  readonly root=new T.Group(); readonly ocean=new Ocean();private waterInteraction=new WaterInteraction(this.ocean);
  private settlements:SettlementRenderer[]=[];private coastalDetail:CoastalDetail;private birds=new Seabirds();
  private layouts=new Map(islands.map(d=>[d.id,buildSettlementLayout(d)]));
- private churchSites=islands.filter(d=>d.id==='harbor'||d.id==='town').map(d=>waterfrontPoint(d,-.70,108));
- private occupied=(x:number,z:number,padding=0)=>[...this.layouts.values()].some(layout=>layoutOccupied(layout,x,z,padding))||this.churchSites.some(p=>Math.hypot(x-p.x,z-p.z)<36+padding);
- private channelMarkers:T.Mesh[]=[];private crowns:T.InstancedMesh[]=[];private rocks:T.InstancedMesh[]=[];private boats:T.Mesh[]=[];private lighthouseParts:T.Object3D[]=[];assetStatus='程序场景';
+ private churchSites=islands.filter(d=>d.id==='harbor'||d.id==='town').map(churchSite);
+ private occupied=(x:number,z:number,padding=0)=>coastalLandmarkOccupied(x,z,padding)||[...this.layouts.values()].some(layout=>layoutOccupied(layout,x,z,padding))||this.churchSites.some(p=>Math.hypot(x-p.x,z-p.z)<36+padding);
+ private channelMarkers:T.Mesh[]=[];private crowns:T.InstancedMesh[]=[];private rocks:T.InstancedMesh[]=[];private boats:T.Mesh[]=[];assetStatus='程序场景';
+ private seaHour=12;private boatNight=nightApproach('harbor',new T.Vector3(islands[0].x-570,0,islands[0].z+1000),9999);private boatReturn?:T.CurvePath<T.Vector3>;private boatProgress=0;private boatClock=0;private boatDayOffset=0;
  private sailingBoat?:T.Mesh;private sailingBounds=new T.Box3();
  private collisionDirection=new T.Vector3();private collisionPoint=new T.Vector3();private collisionRay=new T.Ray();
  private blockers:T.Box3[]=[]; private time=0;
  constructor(){
+  this.landmarks=new CoastalLandmarks(this.blockers);this.root.add(this.landmarks.root);this.hotel=new GardenHotel(this.blockers);this.root.add(this.hotel.root,this.camp.root);
   this.root.add(this.ocean.mesh,this.waterInteraction.root,this.traffic.root);this.blockers.push(...this.traffic.bounds);
   for(const d of islands){this.terrain(d);this.vegetation(d);if(d.id==='harbor'||d.id==='town')this.settlement(d);if(d.id==='lighthouse')this.lighthouse(d);}
   for(const d of reefs){this.terrain(d);addReefRocks(this.root,d,this.blockers);}
   addOutpostIslands(this.root,this.blockers);addMediterraneanPlants(this.root,this.occupied);this.arch();this.buoys();this.distantIslands();addIslandDetails(this.root,this.blockers,this.occupied);this.coastalDetail=new CoastalDetail(this.blockers,this.occupied);this.root.add(this.coastalDetail.root,this.birds.mesh);
-  const boat=buildHarborBoat(2);boat.position.set(islands[0].x-700,0,islands[0].z+1000);boat.name='Harbor / offshore fishing boat';boat.scale.setScalar(.60);this.root.add(boat);this.boats.push(boat);this.sailingBoat=boat;this.blockers.push(this.sailingBounds);this.updateSailingBoat();this.moorings=new Moorings(this.blockers);this.root.add(this.townHarborLights.root,this.moorings.root,this.beacon.root,new IslandIdentity().root);this.root.traverse(o=>{if(o instanceof T.Mesh&&o.userData.nightWindow)this.outpostWindows.push(o.material as T.MeshStandardMaterial);});
+  const boat=buildHarborBoat(2);boat.position.set(islands[0].x-700,0,islands[0].z+1000);boat.name='Harbor / offshore fishing boat';boat.scale.setScalar(.60*1.05);this.root.add(boat);this.boats.push(boat);this.sailingBoat=boat;this.blockers.push(this.sailingBounds);this.updateSailingBoat();this.moorings=new Moorings(this.blockers);this.blockers.push(...this.townHarborLights.bounds);this.ocean.setHarborLights(this.townHarborLights.waterLights);this.root.add(this.townHarborLights.root,this.moorings.root,this.beacon.root,new IslandIdentity().root);this.root.traverse(o=>{if(o instanceof T.Mesh&&o.userData.nightWindow)this.outpostWindows.push(o.material as T.MeshStandardMaterial);});
 
  }
  private terrain(d:IslandDefinition){
@@ -51,14 +60,15 @@ export class World {
   const mesh=new T.Mesh(geo,material);mesh.position.set(d.x,0,d.z);mesh.name=`${d.name} / continuous limestone terrain`;mesh.receiveShadow=mesh.castShadow=true;this.root.add(mesh);
  }
  private vegetation(d:IslandDefinition){
-  if(d.id==='coral'){addCoralBiome(this.root,d);this.coastalRocks(d);return;}
-  const rng=random(d.seed),count=d.id==='pine'?500:d.id==='lighthouse'?80:d.id==='cove'?240:d.id==='harbor'?340:400;
+  if(d.id==='coral'){addCoralBiome(this.root,d);addCoralReefLinks(this.root,d,this.blockers);this.coastalRocks(d);return;}
+  const rng=random(d.seed),count=d.id==='pine'?300:d.id==='lighthouse'?80:d.id==='cove'?240:d.id==='harbor'?120:155;
   const crownGeo=new T.ConeGeometry(1,1,7);crownGeo.translate(0,.5,0);
   const leaves=new T.InstancedMesh(crownGeo,new T.MeshStandardMaterial({color:0x506b40,roughness:1,flatShading:true}),count);
   const trunks=new T.InstancedMesh(new T.CylinderGeometry(.15,.25,1,5),new T.MeshStandardMaterial({color:0x6d5940,roughness:1}),count);
   const dummy=new T.Object3D(),color=new T.Color();let placed=0;
   for(let attempt=0;placed<count&&attempt<count*20;attempt++){
    const x=d.x+(rng()-.5)*d.rx*1.9,z=d.z+(rng()-.5)*d.rz*1.9,h=terrainHeight(d,x,z);
+   if(d.id==='lighthouse'&&(Math.hypot(x-d.x,z-d.z)<32||Math.hypot(x-d.x-44,z-d.z-12)<24))continue;
    if(h<25||h>d.height*.95||inTakeoffChannel(d,x,z,30)||this.occupied(x,z,9))continue;
    const slope=Math.hypot(terrainHeight(d,x+3,z)-terrainHeight(d,x-3,z),terrainHeight(d,x,z+3)-terrainHeight(d,x,z-3))/6;if(slope>1.2)continue;
    if((d.id==='harbor'||d.id==='town')&&(z-d.z)*(d.id==='town'?-1:1)>-70&&Math.abs(x-d.x)<d.rx*.77)continue;
@@ -87,16 +97,16 @@ export class World {
  private settlement(d:IslandDefinition){
   const settlement=new SettlementRenderer(d,this.layouts.get(d.id)!,this.blockers);this.settlements.push(settlement);this.root.add(settlement.root);
   const church=new Church(d,this.blockers);this.churches.push(church);this.root.add(church.root);
-  // Real boats sit beside each timber pier, with their bows aligned to the berth.
-  for(const a of(d.id==='town'?[-2.12,-1.45,-.63]:[-2.73,-2.18,-1.62,-1.04,-.49])){
-   const p=waterfrontPoint(d,a,-28);if(p.y>25)continue;
-   for(const side of[-1,1]){
-    const x=p.x+p.nz*side*11,z=p.z-p.nx*side*11;
-    const boat=buildHarborBoat(side>0?3:1);boat.position.set(x,0,z);boat.scale.setScalar(.55);this.root.add(boat);boat.rotation.y=Math.atan2(-p.nx,-p.nz);this.boats.push(boat);
-   }
-  }
+  // Three basin vessels per public harbour are managed by SeaTraffic.
+
  }
- private lighthouse(d:IslandDefinition){const before=new Set(this.root.children);const x=d.x,z=d.z,h=terrainHeight(d,x,z);this.mesh(new T.CylinderGeometry(21,25,7,16),0xbdb99b,x,h+3,z);this.mesh(new T.CylinderGeometry(7,11,50,20),0xeee8ca,x,h+30,z);this.mesh(new T.CylinderGeometry(10,10,4,20),0x846344,x,h+55,z);this.mesh(new T.CylinderGeometry(6,7,10,12),0xc3d4ca,x,h+62,z);this.mesh(new T.ConeGeometry(11,10,20),0xa54d31,x,h+71,z);this.blockers.push(new T.Box3(new T.Vector3(x-12,h,z-12),new T.Vector3(x+12,h+78,z+12)));this.lighthouseParts=this.root.children.filter(obj=>!before.has(obj));}
+ private lighthouse(d:IslandDefinition){
+  this.root.add(lighthouseArchitecture(d));
+  const h=terrainHeight(d,d.x,d.z);
+  this.blockers.push(new T.Box3(new T.Vector3(d.x-12,h,d.z-12),new T.Vector3(d.x+12,h+79,d.z+12)));
+  const cottageHeight=terrainHeight(d,d.x+44,d.z+12);
+  this.blockers.push(new T.Box3(new T.Vector3(d.x+32,cottageHeight-9,d.z+2),new T.Vector3(d.x+56,cottageHeight+21,d.z+22)));
+ }
  private arch(){this.root.add(buildCoveArch(islands[3]));addCoveLandmarks(this.root,islands[3],this.blockers);}
  private buoys(){const d=islands[0];for(let i=0;i<8;i++){const x=d.x+i*54,z=d.z+610;this.channelMarkers.push(this.mesh(new T.ConeGeometry(1.8,3.5,8),i%2?0xd6bb69:0xb44e36,x,1.5,z));}}
  private distantIslands(){const rng=random(8921);for(let i=0;i<12;i++){let x=0,z=0;while(Math.hypot(x,z)<8500){x=(rng()-.5)*28000;z=(rng()-.5)*28000;}const m=this.mesh(distantIslandGeometry(8921+i*67),0x71928b,x,-25,z);m.scale.set(240+rng()*400,45+rng()*55,180+rng()*240);m.rotation.y=rng()*Math.PI;}}
@@ -104,9 +114,9 @@ export class World {
   try{const kit=await loadEnvironmentKit(),material=new T.MeshStandardMaterial({vertexColors:true,roughness:.88});
    for(const settlement of this.settlements)settlement.loadKit(kit,material);
    const crown=kit.get('PineCrown');if(crown)for(const mesh of this.crowns){mesh.geometry=crown;mesh.material=material;mesh.instanceColor=null;mesh.computeBoundingSphere();}
-   const rock=kit.get('CoastalRock');if(rock)for(const mesh of this.rocks){mesh.geometry=rock;mesh.material=material;mesh.computeBoundingSphere();}
-   const tower=kit.get('Lighthouse');if(tower){for(const part of this.lighthouseParts)this.root.remove(part);const d=islands[2],mesh=new T.Mesh(tower,material);mesh.position.set(d.x,terrainHeight(d,d.x,d.z),d.z);mesh.castShadow=true;mesh.receiveShadow=true;this.root.add(mesh);}
-   const boat=kit.get('FishingBoat');if(boat)for(const mesh of this.boats){mesh.geometry=boat;mesh.material=material;mesh.scale.setScalar(1);mesh.position.y=.4;mesh.userData.waterline=.4;}
+   const rock=kit.get('CoastalRock');if(rock)for(const mesh of this.rocks){mesh.geometry=rock;const stone=material.clone();stone.userData.coastalRock=true;mesh.material=stone;mesh.computeBoundingSphere();}
+
+   const boat=kit.get('FishingBoat');if(boat)for(const mesh of this.boats){mesh.geometry=boat;mesh.material=material;mesh.scale.setScalar(1.05);mesh.position.y=.4;mesh.userData.waterline=.4;}
    const warehouse=kit.get('Warehouse');if(warehouse)for(const d of islands.slice(0,2))for(const side of [-1,1]){const p=waterfrontPoint(d,side<0?-2.80:-.34,40),x=p.x,z=p.z,h=terrainHeight(d,x,z),mesh=new T.Mesh(warehouse,material);mesh.position.set(x,h,z);mesh.rotation.y=Math.atan2(-p.nx,-p.nz);mesh.castShadow=mesh.receiveShadow=true;this.root.add(mesh);this.blockers.push(new T.Box3(new T.Vector3(x-13,h,z-8),new T.Vector3(x+13,h+15,z+8)));}
    this.assetStatus='石灰岩海岸 · 曲线港镇 · Blender 模块';
   }catch{this.assetStatus='程序场景（精细资产未加载）';}
@@ -115,9 +125,21 @@ export class World {
   const c=Math.cos(p.angle),s=Math.sin(p.angle),dx=-18,dz=p.depth*.53+27;
   return{position:new T.Vector3(p.x+dx*c+dz*s,p.ground+7,p.z-dx*s+dz*c),target:new T.Vector3(p.x,p.ground+5,p.z)};
  }
- private updateSailingBoat(){const boat=this.sailingBoat;if(!boat)return;const a=this.time*.019;boat.position.x=islands[0].x-700+Math.cos(a)*130;boat.position.z=islands[0].z+1000+Math.sin(a)*85;boat.rotation.y=Math.atan2(Math.sin(a)*130,-Math.cos(a)*85);this.sailingBounds.min.set(boat.position.x-4,-1,boat.position.z-8);this.sailingBounds.max.set(boat.position.x+4,5,boat.position.z+8);}
- setTimeOfDay(dt:number,nightness:number){this.townHarborLights.setNightness(nightness);this.traffic.setNightness(nightness);for(const material of this.outpostWindows){material.emissive.setHex(0xffb35d);material.emissiveIntensity=T.MathUtils.smoothstep(nightness,.25,.8)*1.4;}for(const settlement of this.settlements)settlement.setNightness(nightness);this.beacon.update(dt,nightness);this.ocean.setBeacon(this.beacon.root.position,this.beacon.beamDirection,T.MathUtils.smoothstep(nightness,.15,.75));this.moorings.setNightness(nightness);for(const church of this.churches)church.setNightness(nightness);}
- updateView(position:T.Vector3){this.coastalDetail.updateView(position);for(const settlement of this.settlements)settlement.updateLOD(position);}
+ private updateSailingBoat(){
+  const boat=this.sailingBoat;if(!boat)return;const dt=Math.max(0,this.time-this.boatClock),night=wantsNightMooring(this.seaHour);this.boatClock=this.time;
+  if(night&&!this.boatReturn){this.boatReturn=new T.CurvePath<T.Vector3>();const start=this.boatNight.getPoint(0);this.boatReturn.add(new T.LineCurve3(new T.Vector3(boat.position.x,0,boat.position.z),start));for(const c of this.boatNight.curves)this.boatReturn.add(c);this.boatProgress=this.time<1?1:0;}
+  if(this.boatReturn){
+   this.boatProgress=T.MathUtils.clamp(this.boatProgress+(night?1:-1)*dt*4/this.boatReturn.getLength(),0,1);const p=this.boatReturn.getPoint(this.boatProgress),direction=this.boatReturn.getTangent(Math.min(.99999,this.boatProgress)).multiplyScalar(night?1:-1);boat.position.x=p.x;boat.position.z=p.z;boat.rotation.y=Math.atan2(-direction.x,-direction.z);
+   if(!night&&this.boatProgress===0){this.boatReturn=undefined;this.boatDayOffset=-this.time;}
+  }else{const a=(this.time+this.boatDayOffset)*.019;boat.position.x=islands[0].x-700+Math.cos(a)*130;boat.position.z=islands[0].z+1000+Math.sin(a)*85;boat.rotation.y=Math.atan2(Math.sin(a)*130,-Math.cos(a)*85);}
+  this.sailingBounds.min.set(boat.position.x-5,-2.1,boat.position.z-9);this.sailingBounds.max.set(boat.position.x+5,9,boat.position.z+9);
+ }
+
+ get nightLampSites(){return this.settlements.flatMap(s=>s.nightLampSites);}
+ get lightStatus(){return this.settlements.map(s=>s.lightStatus);}
+ setTimeOfDay(dt:number,nightness:number,hour=12){this.seaHour=hour;this.camp.setNightness(nightness,dt);this.hotel.setNightness(nightness,dt);this.waterInteraction.setNightness(nightness);this.townHarborLights.setNightness(nightness);this.traffic.setNightness(nightness,hour);for(const material of this.outpostWindows){material.emissive.setHex(0xffb35d);material.emissiveIntensity=T.MathUtils.smoothstep(nightness,.25,.8)*1.4;}for(const settlement of this.settlements)settlement.setNightness(nightness);this.beacon.update(dt,nightness);this.ocean.setBeacon(this.beacon.root.position,this.beacon.beamDirection,T.MathUtils.smoothstep(nightness,.15,.75));this.moorings.setNightness(nightness);for(const church of this.churches)church.setNightness(nightness);}
+ warmBuildingLOD(detail:boolean){this.landmarks.warmView();for(const settlement of this.settlements)settlement.warmLOD(detail);}
+ updateView(position:T.Vector3){this.townHarborLights.updateView(position);this.landmarks.updateView(position);this.coastalDetail.updateView(position);for(const settlement of this.settlements)settlement.updateLOD(position);}
  heightAt(x:number,z:number){let h=-20;for(const d of allLandforms)h=Math.max(h,terrainSurfaceHeight(d,x,z));return h;}
  collides(from:T.Vector3,to:T.Vector3){
   const distance=from.distanceTo(to),samples=Math.max(1,Math.ceil(distance/3));
@@ -136,5 +158,5 @@ export class World {
  }
  clearWake(){this.waterInteraction.reset();}
  resetWater(){this.time=0;this.ocean.update(0);this.waterInteraction.reset();}
- update(dt:number,position:T.Vector3,heading:number,speed:number,onWater:boolean,simulationTime?:number,impact=0,aircraft='redwing'){this.birds.update(dt);this.time=simulationTime??this.time+dt;this.updateSailingBoat();this.ocean.update(this.time);this.traffic.update(this.time,(x,z)=>this.ocean.surfaceAt(x,z));this.waterInteraction.update(dt,position,heading,speed,onWater,impact,aircraft);for(const boat of this.boats){const water=this.ocean.surfaceAt(boat.position.x,boat.position.z);boat.position.y=(boat.userData.waterline??1.2)+water.height;boat.rotation.x=Math.atan(water.dz)*.65;boat.rotation.z=-Math.atan(water.dx)*.65;}for(const marker of this.channelMarkers)marker.position.y=1.5+this.ocean.heightAt(marker.position.x,marker.position.z);}
+ update(dt:number,position:T.Vector3,heading:number,speed:number,onWater:boolean,simulationTime?:number,impact=0,aircraft='redwing'){this.birds.update(dt);this.time=simulationTime??this.time+dt;for(const settlement of this.settlements)settlement.updateTime(this.time);this.landmarks.update(this.time,.35,(x,z)=>this.ocean.surfaceAt(x,z));this.updateSailingBoat();this.ocean.update(this.time);this.traffic.update(this.time,(x,z)=>this.ocean.surfaceAt(x,z),{position,speed,onWater});this.waterInteraction.update(dt,position,heading,speed,onWater,impact,aircraft);for(const boat of this.boats){const water=this.ocean.surfaceAt(boat.position.x,boat.position.z);boat.position.y=(boat.userData.waterline??1.2)+water.height;boat.rotation.x=Math.atan(water.dz)*.65;boat.rotation.z=-Math.atan(water.dx)*.65;}for(const marker of this.channelMarkers)marker.position.y=1.5+this.ocean.heightAt(marker.position.x,marker.position.z);}
 }

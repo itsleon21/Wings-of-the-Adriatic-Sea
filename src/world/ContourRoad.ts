@@ -28,5 +28,5 @@ export function contourRoad(d:IslandDefinition,start:GroundPoint,goal:GroundPoin
  }
  if(!Number.isFinite(cost[last]))return[];
  const path:GroundPoint[]=[];for(let id=last;id!==-1;id=parent[id])path.push(point(id));path.reverse();
- return[start,...path];
+ return[{...start},...path];
 }

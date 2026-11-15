@@ -1,0 +1,12 @@
+/** Original SVG artwork informed by early mechanical flight instruments. */
+type LandingBand = {minKmh:number;maxKmh:number;maxTouchdownSink:number};
+function rangeArc(low:number,high:number,min:number,max:number){
+  const point=(value:number)=>{
+    const angle=instrumentAngle(value,min,max)*Math.PI/180;
+    return `${31*Math.sin(angle)} ${-31*Math.cos(angle)}`;
+  };
+  return `<path d="M${point(low)} A31 31 0 0 1 ${point(high)}" fill="none" stroke="#91cdae" stroke-width="2.4"/>`;
+}
+function dial(id:string,label:string,unit:string,max:number,step:number,min=0,band=""){const ticks=[];for(let i=0;i<=40;i++){const a=(-130+i*6.5)*Math.PI/180,major=i%(id==='rpm'?8:id==='climb'?5:4)===0,r=major?33:35,x=Math.sin(a),y=-Math.cos(a);ticks.push(`<path d="M${x*r} ${y*r}L${x*39} ${y*39}" class="${major?'major':'minor'}"/>`);if(major)ticks.push(`<text x="${x*26}" y="${y*26+2.5}">${Math.round((min+i/40*(max-min))/step)}</text>`);}return `<figure class="flight-dial" aria-label="${label}"><svg viewBox="-50 -50 100 100" aria-hidden="true"><circle r="49" class="outer-bezel"/><circle r="47" class="bezel"/><circle r="44" class="bezel-inner"/><circle r="42" class="dial-face"/>${band}${ticks.join('')}<text x="0" y="-10" class="dial-unit">${unit}</text><g id="${id}-needle" class="dial-needle" style="--angle:-130deg"><path d="M-1.5 10L-1 -30L0 -35L1 -30L1.5 10Z"/></g><circle r="3.8" class="dial-hub"/><circle r="1.3" class="hub-screw"/><path d="M-34 -23Q-8 -45 25 -31" class="dial-glass"/></svg><figcaption><span>${label}</span><b id="${id}">0</b></figcaption></figure>`;}
+export function instrumentMarkup(maxSpeed:number,landing:LandingBand){return `<div class="telemetry instrument-cluster"><section class="instrument-pair instrument-left" aria-label="空速与高度"><div class="dial-row">${dial('speed','空速','km/h',maxSpeed,1,0,rangeArc(landing.minKmh,landing.maxKmh,0,maxSpeed))}${dial('altitude','海拔','×100 m',2000,100)}</div><div class="power-strip"><small>油门</small><b id="throttle">0<span>%</span></b><div class="throttle-track"><span id="throttle-bar"></span></div></div></section><section class="instrument-pair instrument-right" aria-label="发动机与升降率"><div class="dial-row">${dial('rpm','桨轴转速','×100 RPM',2500,100)}${dial('climb','升降率','m/s',20,1,-20,rangeArc(-landing.maxTouchdownSink,0,-20,20))}</div></section></div>`;}
+export function instrumentAngle(value:number,min:number,max:number){return -130+260*Math.max(0,Math.min(1,(value-min)/(max-min)));}

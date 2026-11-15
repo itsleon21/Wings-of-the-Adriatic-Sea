@@ -20,7 +20,7 @@ export interface LandingAdvice{
 export function landingAdvice(tuning:Readonly<FlightTuning>,s:LandingSnapshot):LandingAdvice{
  const p=landingProfile(tuning.id),height=Math.max(0,s.clearance),sink=-s.verticalSpeed,speedKmh=s.speed*3.6,bank=Math.abs(Math.atan2(Math.sin(s.bank),Math.cos(s.bank)))*180/Math.PI;
  const speedGood=speedKmh>=p.minKmh&&speedKmh<=p.maxKmh,sinkGood=sink>=-.35&&sink<=(height<=p.flareHeight?p.maxTouchdownSink:p.maxApproachSink),bankGood=bank<=p.maxBankDegrees,pitchGood=s.pitch>=-.06&&s.pitch<=.12,waterGood=s.overWater&&s.clearAhead;
- const result:LandingAdvice={title:'水面降落参考',instruction:`先在 ${p.setupMin}–${p.setupMax} 米选好开阔海面，逐步减速。`,tone:'neutral',automatic:s.state==='LANDING'||s.state==='ON_WATER'&&s.landingCount>0||s.state==='AIRBORNE'&&height<Math.max(120,p.setupMax+20)&&(sink>.3||s.throttle<.4),speedGood,sinkGood,bankGood,pitchGood,waterGood,ready:false,height,sink,speedKmh};
+ const result:LandingAdvice={title:'水面降落参考',instruction:`先在 ${p.setupMin}–${p.setupMax} 米选好开阔海面，逐步减速。`,tone:'neutral',automatic:s.state==='AIRBORNE'&&height<=50&&sink>.3,speedGood,sinkGood,bankGood,pitchGood,waterGood,ready:false,height,sink,speedKmh};
  const say=(title:string,instruction:string,tone:LandingAdvice['tone'])=>Object.assign(result,{title,instruction,tone});
  if(s.state==='CRASHED')return say('飞行已中断','按 R 返回港口，重新练习进近。','danger');
  if(s.state==='LANDING')return say('已着水 · 保持直线','松开俯仰输入并收油门，让船体自然滑行减速。','good');

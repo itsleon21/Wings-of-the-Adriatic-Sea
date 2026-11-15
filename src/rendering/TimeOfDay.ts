@@ -8,12 +8,13 @@ export function daylightAt(hour:number){
  const angle=(h-6)/24*Math.PI*2;const raw=[Math.cos(angle),elevation,.35] as const;
  const blend=Math.min(1,day/.18);const direction=[.35*(1-blend)+raw[0]*blend,.48*(1-blend)+Math.max(-.12,raw[1])*blend,-.65*(1-blend)+raw[2]*blend];
  const sunset=(1-Math.cos(angle))/2;
- const color=[1,.91-warm*(.19+.25*sunset),.74-warm*(.47+.15*sunset)];
+ const color=[1,.91-warm*(.13+.18*sunset),.74-warm*(.32+.13*sunset)];
  const phase:TimeId=h<5||h>=21?'night':h<10?'morning':h<16?'noon':h<21?'dusk':'night';
  return{hour:h,sunset,solarElevation:elevation,phase,day,warm,nightness,direction,color,label:`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}`};
 }
 export type DaylightValues=ReturnType<typeof daylightAt>;
-/** One full day takes 24 real minutes. All clocks stop on pause, help or hidden pages. */
+export const dayCycleSeconds=24*60;
+/** One full day takes 24 real minutes (60 seconds per game hour). All clocks stop on pause, help or hidden pages. */
 export class TimeOfDay{
  hour=12;automatic=true;private chosen:TimeId='noon';private destination?:number;
  constructor(id:TimeId='noon'){this.hour=timePresets[id].hour;this.chosen=id;}
@@ -21,7 +22,7 @@ export class TimeOfDay{
  setAutomatic(value:boolean){this.automatic=value;if(!value)this.chosen=this.current.phase;if(value)this.destination=undefined;}
  update(dt:number,active:boolean){if(!active||!Number.isFinite(dt)||dt<=0)return;
   if(this.destination!==undefined){const delta=wrap(this.destination-this.hour+12)-12;this.hour=wrap(this.hour+delta*(1-Math.exp(-dt*.65)));if(Math.abs(delta)<.005){this.hour=this.destination;this.destination=undefined;}}
-  else if(this.automatic)this.hour=wrap(this.hour+dt/60);
+  else if(this.automatic)this.hour=wrap(this.hour+dt*24/dayCycleSeconds);
  }
  get selection(){return this.automatic?this.current.phase:this.chosen;}
  get current(){return daylightAt(this.hour);}

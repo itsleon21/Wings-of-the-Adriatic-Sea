@@ -20,7 +20,17 @@ export function inTakeoffChannel(d:IslandDefinition,x:number,z:number,padding=0)
 
 /** North-facing town harbour: keep its basin, mouth and approach free of decorative rocks. */
 export function inTownHarborApproach(d:IslandDefinition,x:number,z:number,padding=0){return d.id==='town'&&z<d.z-d.rz*.18+padding&&Math.abs(x-d.x)<d.rx*1.32+padding;}
+export const harborBreakwaterArms=[[[-.45,.52],[-.50,.73],[-.40,.83],[-.22,.84]],[[.45,.52],[.46,.65],[.42,.75]]];
 export const townBreakwaterArms=[[[-.45,.52],[-.50,.67],[-.50,.86],[-.42,.94]],[[.45,.52],[.50,.67],[.50,.86],[.42,.94]]];
+/** A single world-space definition owns wall geometry AND beacon foundations. */
+export function breakwaterLayout(d:IslandDefinition){
+ const facing=d.id==='town'?-1:1;
+ return (d.id==='town'?townBreakwaterArms:harborBreakwaterArms).map(arm=>{
+  const points=arm.map(([x,z])=>({x:d.x+x*d.rx*facing,z:d.z+z*d.rz*facing}));
+  const heights=points.flatMap((p,i)=>i?Array.from({length:13},(_,j)=>terrainHeight(d,points[i-1].x+(p.x-points[i-1].x)*j/12,points[i-1].z+(p.z-points[i-1].z)*j/12)):[]);
+  return{points,tip:points.at(-1)!,deckY:Math.max(4.8,...heights.map(h=>h+.8))};
+ });
+}
 
 interface Instance { p:T.Vector3; s:T.Vector3; r:T.Euler; color?:T.Color }
 /** A few instanced batches contain the detail that would otherwise become thousands of draw calls. */
@@ -86,21 +96,20 @@ function harborDetails(d:IslandDefinition,b:DetailBuilder) {
   for(const side of[-1,1]){const x=p.x-p.nx*(length-14)+p.nz*side*10,z=p.z-p.nz*(length-14)-p.nx*side*10;b.beam(x,2.3,z,18,1.2,5,angle);}
  }
  // Two masonry arms shelter the basin while leaving the eastbound water runway open.
- const arms=d.id==='town'?townBreakwaterArms:[[[-.45,.52],[-.50,.73],[-.40,.83],[-.22,.84]],[[.45,.52],[.46,.65],[.42,.75]]];
- const facing=d.id==='town'?-1:1;
- for(const arm of arms){
-  for(let i=1;i<arm.length;i++){
-   const a=new T.Vector2(d.x+arm[i-1][0]*d.rx*facing,d.z+arm[i-1][1]*d.rz*facing),end=new T.Vector2(d.x+arm[i][0]*d.rx*facing,d.z+arm[i][1]*d.rz*facing),length=a.distanceTo(end),segments=Math.ceil(length/12),angle=Math.atan2(end.x-a.x,end.y-a.y);
+ for(const arm of breakwaterLayout(d)){
+  for(let i=1;i<arm.points.length;i++){
+   const a=new T.Vector2(arm.points[i-1].x,arm.points[i-1].z),end=new T.Vector2(arm.points[i].x,arm.points[i].z),length=a.distanceTo(end),segments=Math.ceil(length/12),angle=Math.atan2(end.x-a.x,end.y-a.y);
    for(let j=0;j<segments;j++){
     const t=(j+.5)/segments,x=T.MathUtils.lerp(a.x,end.x,t),z=T.MathUtils.lerp(a.y,end.y,t);if(inTakeoffChannel(d,x,z,18))continue;
-    const ground=terrainHeight(d,x,z),top=Math.max(4.6,ground+.5);if(ground>15)continue;
-    b.block(x,(top-3)/2,z,10,top+3,length/segments+.2,angle,j%3===0?0xb6ad96:0xaaa28d,true);
-    b.block(x,top+.2,z,10.4,.55,length/segments+.1,angle,0xd0c5ac);
-    if(j%2===0)for(const side of[-1,1])b.block(x+Math.cos(angle)*side*4.5,top+.8,z-Math.sin(angle)*side*4.5,.55,1.2,length/segments+.4,angle,0xc3b89e);
+    const top=arm.deckY;
+    b.block(x,(top-4)/2,z,10,top+4,length/segments+.2,angle,j%3===0?0xb6ad96:0xaaa28d,true);
+    b.block(x,top-.275,z,10.4,.55,length/segments+.1,angle,0xd0c5ac);
+    if(j%2===0)for(const side of[-1,1])b.block(x+Math.cos(angle)*side*4.5,top+.6,z-Math.sin(angle)*side*4.5,.55,1.2,length/segments+.4,angle,0xc3b89e);
    }
   }
-  const end=arm[arm.length-1],x=d.x+end[0]*d.rx*facing,z=d.z+end[1]*d.rz*facing,h=Math.max(4.6,terrainHeight(d,x,z)+.5);if(d.id==='town'){b.blockers.push(new T.Box3(new T.Vector3(x-2.2,h,z-2.2),new T.Vector3(x+2.2,h+6.1,z+2.2)));b.block(x,h+2.2,z,4.0,4.4,4.0,0,0xe8dfc8,true);b.block(x,h+4.0,z,4.08,.7,4.08,0,x>d.x?0xb84834:0x3e7768);b.block(x,h+5,z,3.2,1.2,3.2,0,0x54747b);b.block(x,h+5.8,z,4.2,.4,4.2,0,0x3e514c);b.block(x,h+3,z-2.03,1,2,.12,0,0x38463f);}
-  else if(!inTakeoffChannel(d,x,z,20)){b.block(x,h+2.0,z,2.8,4.0,2.8,0,0xe4dcc6,true);b.post(x,h+4.6,z,.85,1.2);}
+  b.block(arm.tip.x,(arm.deckY-4)/2,arm.tip.z,11,arm.deckY+4,11,0,0xb6ad96,true);
+  b.block(arm.tip.x,arm.deckY-.275,arm.tip.z,11.4,.55,11.4,0,0xd0c5ac);
+
  }
  for(let i=0;i<12;i++){
   const a=-Math.PI+.28+i/11*(Math.PI-.56),p=waterfrontPoint(d,a,17);if(p.y<1||p.y>28)continue;

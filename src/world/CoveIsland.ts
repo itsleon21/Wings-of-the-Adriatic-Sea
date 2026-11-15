@@ -62,9 +62,4 @@ export function addCoveLandmarks(root:T.Group,d:IslandDefinition,blockers:T.Box3
  const roofTrees=new T.InstancedMesh(new T.ConeGeometry(1,1,7),new T.MeshStandardMaterial({color:0x405e36,roughness:1,flatShading:true}),16);
  for(let i=0;i<16;i++){const x=240+rng()*98,z=coveCave.z-37+rng()*74,h=coveRoofTop(d,x,z),height=8+rng()*8;dummy.position.set(d.x+x,h+height*.5,d.z+z);dummy.scale.set(3+rng()*2,height,3+rng()*2);dummy.rotation.set(0,rng()*6.28,0);dummy.updateMatrix();roofTrees.setMatrixAt(i,dummy.matrix);}
  roofTrees.castShadow=roofTrees.receiveShadow=true;root.add(roofTrees);
- // Small isolated lookout cottages, leaving the lagoon and beach unbuilt.
- for(const [lx,lz] of[[-150,-170],[20,-208],[-250,-90]]){
-  const x=d.x+lx,z=d.z+lz,y=coveLandHeight(d,x,z),house=new T.Mesh(new T.BoxGeometry(11,10,9),new T.MeshStandardMaterial({color:0xf0dfbb,roughness:.95}));house.position.set(x,y+5,z);house.castShadow=house.receiveShadow=true;root.add(house);
-  const roof=new T.Mesh(new T.ConeGeometry(9,5,4),new T.MeshStandardMaterial({color:0xa94e31,roughness:.9}));roof.position.set(x,y+12,z);roof.rotation.y=Math.PI/4;roof.castShadow=true;root.add(roof);blockers.push(new T.Box3(new T.Vector3(x-6,y,z-6),new T.Vector3(x+6,y+15,z+6)));
- }
 }

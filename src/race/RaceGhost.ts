@@ -1,8 +1,9 @@
 import * as T from 'three';
+import {raceCourse} from './RaceManager.ts';
 export interface GhostFrame {t:number;p:number[];q:number[]}
 export interface GhostRun {version:1;time:number;sectors:number[];frames:GhostFrame[]}
 export function parseGhost(raw:string|null):GhostRun|undefined{
- try{const g=JSON.parse(raw??'null') as GhostRun;if(!g||g.version!==1||!Number.isFinite(g.time)||g.time<=0||g.time>3600||!Array.isArray(g.frames)||g.frames.length<2||g.frames.length>36002||!Array.isArray(g.sectors)||g.sectors.length!==12)return;
+ try{const g=JSON.parse(raw??'null') as GhostRun;if(!g||g.version!==1||!Number.isFinite(g.time)||g.time<=0||g.time>3600||!Array.isArray(g.frames)||g.frames.length<2||g.frames.length>36002||!Array.isArray(g.sectors)||g.sectors.length!==raceCourse.length)return;
  let previous=-1;for(const f of g.frames){if(!Number.isFinite(f.t)||f.t<=previous||f.t>g.time+.01||!Array.isArray(f.p)||!Array.isArray(f.q)||f.p.length!==3||f.q.length!==4||![...f.p,...f.q].every(Number.isFinite)||f.p.some(v=>Math.abs(v)>100000)||Math.abs(Math.hypot(...f.q)-1)>.02)return;previous=f.t;}
  if(g.frames[0].t!==0||Math.abs(previous-g.time)>.01)return;
  previous=0;for(const t of g.sectors){if(!Number.isFinite(t)||t<=previous||t>g.time)return;previous=t;}if(Math.abs(previous-g.time)>.01)return;return g;
@@ -12,7 +13,7 @@ export class RaceGhost {
  best?:GhostRun;private frames:GhostFrame[]=[];private saved=false;private visual?:T.Object3D;private material=new T.MeshBasicMaterial({color:0x86e4ed,wireframe:true,transparent:true,opacity:.19,depthWrite:false});enabled=true;
  private aircraft:string;
  constructor(aircraft:string){this.aircraft=aircraft;try{this.best=parseGhost(localStorage.getItem(this.key));}catch{}}
- private get key(){return 'adriatic.ghost.course1.'+this.aircraft;}
+ private get key(){return 'adriatic.ghost.point2.'+this.aircraft;}
  reset(){this.frames=[];this.saved=false;if(this.visual)this.visual.visible=false;}
  record(t:number,position:T.Vector3,orientation:T.Quaternion,completed:boolean,sectors:readonly number[]){
   if(this.saved||t<0||t>3600)return;const last=this.frames.at(-1);

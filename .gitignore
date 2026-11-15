@@ -5,3 +5,5 @@ dist/
 history.bundle
 
 __pycache__/
+
+public/audio/hotel-user-recording.m4a

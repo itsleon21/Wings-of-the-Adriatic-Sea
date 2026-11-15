@@ -11,7 +11,7 @@ export const aircraftCatalog: readonly AircraftDefinition[] = [
   { id:'redwing', name:'红翼一号', number:'01', subtitle:'迅捷 · 灵活 · 特技飞行',
     description:'朱红单翼飞行艇。响应敏捷，适合高速掠海与翻滚机动。',
     modelFile:'aircraft.glb', span:12, length:8.5, color:0xb93424,
-    engineFocus:[0,1.53,-1.1], propellerRadius:.98, propellerDirection:1, cockpitEye:[0,1.18,1.25], tuning:FlightConfig },
+    engineFocus:[0,2.18,-1.1], propellerRadius:.98, propellerDirection:1, cockpitEye:[0,.86,1.17], tuning:FlightConfig },
   { id:'m5', name:'M5战斗飞艇', number:'02', subtitle:'双翼 · 平缓 · 慢速观光',
     description:'浅灰色布面双翼与木质船身。巡航更慢，操控平缓，适合细看群岛风景。',
     modelFile:'m5.glb', span:11.9, length:8.4, color:0x4b5140,
@@ -27,7 +27,7 @@ export function resolveAircraftId(search: string, saved: unknown): AircraftId {
 }
 const selectionKey='adriatic-eagle.aircraft';
 export function selectedAircraftId(): AircraftId {
-  const raceQuery=new URLSearchParams(location.search);if(raceQuery.get('race')==='1')return isRaceAircraft(raceQuery.get('aircraft'))?raceQuery.get('aircraft') as AircraftId:'s6';
+  const raceQuery=new URLSearchParams(location.search);if(raceQuery.get('race')==='1')return raceQuery.get('aircraft')==='mc72'?'mc72':isRaceAircraft(raceQuery.get('aircraft'))?raceQuery.get('aircraft') as AircraftId:'s6';
   let saved: string|null=null;
   try { saved=localStorage.getItem(selectionKey); } catch { /* Storage can be denied in private browsing. */ }
   return resolveAircraftId(location.search,saved);

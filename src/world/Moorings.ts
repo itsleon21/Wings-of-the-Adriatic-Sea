@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {islands,terrainHeight,bayProfile} from './WorldConfig.ts';
+import {islands,hotelIsland,hotelScale,hotelWidthScale,terrainHeight,bayProfile} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {inTakeoffChannel} from './IslandDetails.ts';
 export interface MooringSite{id:string;name:string;x:number;z:number;shoreX:number;shoreZ:number;dx:number;dz:number;length:number;berth:T.Vector3;heading:number}
@@ -12,13 +12,13 @@ export function findMooring(d:IslandDefinition):MooringSite{
   for(let j=0;j<600;j++,r+=bay?1.5:-1.5){const h=terrainHeight(d,cx+dx*r,cz+dz*r);if((bay&&h>1.8)||(!bay&&h>1.8)){land=r;break;}}
   if(land<=1)continue;const outward=bay?-1:1,nx=dx*outward,nz=dz*outward,sx=cx+dx*land,sz=cz+dz*land;
   const h=terrainHeight(d,sx,sz);if(h>7||inTakeoffChannel(d,sx,sz,50))continue;
-  let length=65;if(!bay){while(length<245){const bx=sx+nx*(length-8)+nz*24,bz=sz+nz*(length-8)-nx*24;if(Math.hypot((bx-d.x)/d.rx,(bz-d.z)/d.rz)>1.40)break;length+=15;}}const x=sx+nx*length,z=sz+nz*length,bx=x+nz*24-nx*8,bz=z-nx*24-nz*8;
+  let length=65;if(d.id==='coral'){while(length<155&&terrainHeight(d,sx+nx*(length-8)+nz*24,sz+nz*(length-8)-nx*24)>-4)length+=15;}else if(!bay){while(length<245){const bx=sx+nx*(length-8)+nz*24,bz=sz+nz*(length-8)-nx*24;if(Math.hypot((bx-d.x)/d.rx,(bz-d.z)/d.rz)>1.40)break;length+=15;}}const x=sx+nx*length,z=sz+nz*length,bx=x+nz*24-nx*8,bz=z-nx*24-nz*8;
   if(terrainHeight(d,x,z)>-4||terrainHeight(d,bx,bz)>-4)continue;
   if([.3,.6,1].some(t=>terrainHeight(d,bx+nx*t*110,bz+nz*t*110)>-3))continue;
   return{id:d.id,name:d.name+'栈桥',x,z,shoreX:sx,shoreZ:sz,dx:nx,dz:nz,length,berth:new T.Vector3(bx,0,bz),heading:Math.atan2(-nx,-nz)};
  }throw new Error(`未找到安全栈桥岸线: ${d.name}`);
 }
-export const mooringSites=islands.map(findMooring);
+export const mooringSites=[...islands.map(findMooring),{id:'hotel',name:'花园酒店岛栈桥',shoreX:hotelIsland.x-85*hotelScale*hotelWidthScale,shoreZ:hotelIsland.z+189*hotelScale,x:hotelIsland.x-85*hotelScale*hotelWidthScale,z:hotelIsland.z+189*hotelScale+60,dx:0,dz:1,length:60,berth:new T.Vector3(hotelIsland.x-85*hotelScale*hotelWidthScale+24,0,hotelIsland.z+189*hotelScale+52),heading:Math.PI}];
 export class Moorings{
  readonly root=new T.Group();private lamps:T.MeshStandardMaterial;
  constructor(blockers:T.Box3[]){
@@ -27,10 +27,10 @@ export class Moorings{
   for(const site of mooringSites){
    const group=new T.Group();group.name=site.name;group.position.set(site.shoreX,0,site.shoreZ);const angle=Math.atan2(site.dx,site.dz);group.rotation.y=angle;this.root.add(group);
    const add=(g:T.BufferGeometry,m:T.Material,x:number,y:number,z:number)=>{const o=new T.Mesh(g,m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;};
-   add(new T.BoxGeometry(6,.6,site.length),wood,0,3,site.length/2);add(new T.BoxGeometry(15,.6,8),wood,0,3,site.length-4);
-   for(let z=2;z<site.length;z+=4){add(new T.BoxGeometry(6.2,.12,.16),wood,0,3.36,z);if(z%12===2)for(const x of[-2.6,2.6])add(new T.CylinderGeometry(.19,.24,7,7),wood,x,.7,z);}
+   add(new T.BoxGeometry(6,.6,site.length-8),wood,0,3,(site.length-8)/2);add(new T.BoxGeometry(15,.6,8),wood,0,3,site.length-4);
+   for(let z=2;z<site.length;z+=4){add(new T.BoxGeometry(6.2,.12,.16),wood,0,3.36,z);if(z%12===2)for(const x of[-2.6,2.6])add(new T.CylinderGeometry(.19,.24,7,7),wood,x,-.65,z);}
    for(const x of[-6,6]){add(new T.CylinderGeometry(.35,.42,.8,8),iron,x,3.7,site.length-3);add(new T.CylinderGeometry(.10,.13,3.8,6),iron,x,5.1,site.length-3);add(new T.SphereGeometry(.28,8,6),this.lamps,x,7.1,site.length-3);}
-   add(new T.BoxGeometry(9,2.2,9),stone,0,1.6,1);add(new T.BoxGeometry(3,1.3,.22),stone,0,4.3,site.length-5);
+   add(new T.BoxGeometry(9,2.2,9),stone,0,1.6,1);add(new T.BoxGeometry(3,1.3,.22),stone,0,3.94,site.length-5);
    // Merge the repeated planks and piles by material, preserving physical geometry and lamp emissive control.
    const batches=new Map<T.Material,T.BufferGeometry[]>();for(const child of [...group.children]){if(!(child instanceof T.Mesh))continue;child.updateMatrix();const g=child.geometry.clone().applyMatrix4(child.matrix),m=child.material as T.Material;const parts=batches.get(m)??[];parts.push(g);batches.set(m,parts);group.remove(child);child.geometry.dispose();}for(const [m,parts] of batches){const geometry=mergeGeometries(parts,false)!;parts.forEach(g=>g.dispose());const mesh=new T.Mesh(geometry,m);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);}
    group.updateMatrixWorld(true);

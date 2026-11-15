@@ -5,3 +5,7 @@
 #race-aircraft{font:12px Georgia,serif;color:#efd3a0;margin-top:8px}
 
 .ghost-option{display:flex;align-items:center;gap:7px;font-size:10px;color:#ead2ac;margin:12px 0}.ghost-option input{accent-color:#80cbd0}#race-sector{color:#a4e3dc}#race-laps{font-variant-numeric:tabular-nums}
+
+#race-status p{margin:6px 0}#race-status p:empty{display:none}#race-status h2{margin:10px 0 7px}#race-guidance{color:#bfe9de;border-left:2px solid #8ebfb0;padding-left:8px}#race-guidance[data-warning="true"]{color:#ffda91;border-color:#e8b45f}#race-status .ghost-option{margin:7px 0}#race-status .race-shortcut{font-size:9px;opacity:.75;margin-top:11px}
+
+#race-laps{white-space:pre-line}#race-phase{line-height:1.35}

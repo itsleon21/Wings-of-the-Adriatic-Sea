@@ -40,3 +40,11 @@ test('imported steel and fabric become physical surfaces while keeping texture o
  const texture=new T.Texture(),source=new T.MeshStandardMaterial({name:'M5 brushed alloy',map:texture,roughness:.4,metalness:.8,side:T.DoubleSide}),material=physicalAircraftMaterial(source) as T.MeshPhysicalMaterial;
  assert.ok(material instanceof T.MeshPhysicalMaterial);assert.equal(material.map,texture);assert.equal(material.side,T.DoubleSide);assert.ok('PHYSICAL' in material.defines);prepareAircraftSurface(material,false);assert.ok(material.anisotropy>0);assert.equal(material.clearcoat,0);assert.equal(physicalAircraftMaterial(material),material);source.dispose();material.dispose();texture.dispose();
 });
+
+test('spray and wake share daylight brightness instead of glowing at night',()=>{
+ const world=new World();const spray=world.root.getObjectByName('Hull and float spray / gravity particles') as T.Points<T.BufferGeometry,T.ShaderMaterial>;
+ const wake=world.root.getObjectByName('World-space wake / spreading foam ribbons') as T.Mesh<T.BufferGeometry,T.ShaderMaterial>;
+ world.setTimeOfDay(0,0);assert.equal(spray.material.uniforms.foamBrightness.value,1);
+ world.setTimeOfDay(0,1);assert.ok(spray.material.uniforms.foamBrightness.value>.1&&spray.material.uniforms.foamBrightness.value<.3);
+ assert.equal(wake.material.uniforms.foamBrightness.value,spray.material.uniforms.foamBrightness.value);
+});

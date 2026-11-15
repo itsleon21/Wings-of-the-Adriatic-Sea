@@ -9,3 +9,10 @@
 @media(min-width:901px){.aircraft-specs{left:28px;right:auto;top:auto;bottom:120px;width:296px;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;border-top:1px solid #a795694d;padding-top:14px;background:none}.aircraft-specs .specs-heading{display:none}.aircraft-specs>span{font-size:8px;letter-spacing:1px;gap:7px}.aircraft-specs b{font-size:22px}.aircraft-specs .handling-value{font-size:10px}.fleet{bottom:210px}.model-stage-label{right:30px}}
 @media(max-height:740px) and (min-width:901px){.aircraft-specs{bottom:109px}.fleet{bottom:180px}}
 @media(max-height:590px) and (min-width:901px){.aircraft-specs{bottom:94px;padding-top:10px}.fleet{bottom:166px}.fleet-note{display:none}.fleet-choice{min-height:61px;padding:8px 11px}}
+
+/* Fleet catalogue: same ink, enamel and trim as the flight instruments. */
+#hangar{--ink:#233c42;--paper:#edeedf;--line:#58737750}
+#hangar header{background:#1e3944;color:#eff0df;border-bottom:3px double #a4bbb4}
+#hangar .depart{background:#963f33;color:#fff4df}
+#hangar .fleet-choice[aria-pressed=true]{border-left-color:#963f33}
+.hangar-workshop-entry{position:fixed;right:38px;top:105px;z-index:6;display:grid;gap:9px;min-width:190px;padding:17px 20px;color:#f3e8cd;background:linear-gradient(120deg,#294b54,#18343f);border:1px solid #bda77d;text-decoration:none;font:20px 'Songti SC',Georgia,serif;box-shadow:0 5px 16px #152e3930}.hangar-workshop-entry span{font:10px 'Avenir Next',sans-serif;letter-spacing:1px}.hangar-workshop-entry:hover{background:#365963}.hangar-workshop-entry[hidden]{display:none}@media(max-width:700px){.hangar-workshop-entry{top:80px;right:14px;min-width:140px;padding:12px;font-size:16px}}

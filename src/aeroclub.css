@@ -1,0 +1,22 @@
+/* Painted instrument cases, nickel trim and printed flight stationery. */
+:root{--case:#172f39;--nickel:#91a9a9;--dial:#f3efdc;--signal:#ab4939}
+body.is-playing :is(.telemetry,.mission-panel,.top-actions,.landing-assist,.flight-tools,.pause-card),#race-status,.journey-tools button{
+ color:var(--dial);background:linear-gradient(115deg,#294751,#172f39 68%);border:1px solid #81979a;border-radius:2px;
+ box-shadow:inset 0 0 0 2px #182f38,inset 0 0 0 3px #75949755,0 2px 7px #07191e55}
+body.is-playing .telemetry{border-top:3px double #afc3bd}
+body.is-playing .telemetry small,body.is-playing .mission-panel .eyebrow,#race-status small{color:#b8cec8;letter-spacing:.14em}
+body.is-playing .telemetry b,body.is-playing .telemetry .primary-reading b,#race-timer{color:#faf4db;font-family:Georgia,'Songti SC',serif;font-variant-numeric:lining-nums tabular-nums;text-shadow:none}
+body.is-playing .telemetry i{background:#9fbab95c}
+body.is-playing .flight-tools button,body.is-playing .top-actions select{color:#f3efdc;background:#172f39;border-color:#849d9e70;border-radius:1px}
+body.is-playing .flight-tools kbd{color:#b5c9c5}
+body.is-playing .flight-tools button:hover,.journey-tools button:hover{background:#37565d}
+body.is-playing .bottom-hint,.commission-hint{background:#19323ceb;border-left-color:#dad2ad;color:#f1eddb}
+body.is-playing .chart,.journal-book,#photo-toolbar{border-color:#57757a;background-color:#edeedf;color:#233c42}
+.journal-book h1,#photo-toolbar h2{border-bottom:3px double #879c96;padding-bottom:.35em}
+.journal-book button{background:#e3e9df;border-color:#8a9f9d}
+.intro-index{border-top:3px double #c7d5cd;padding-top:8px;width:max-content;color:#e3e7d8;letter-spacing:.22em}
+.intro h1 em{color:#f1eddb}.intro .primary,.pause-card .primary{background:#963f33;border:1px solid #e5baa6;border-radius:1px}
+#app :focus-visible{outline:2px solid #fff1ac;outline-offset:2px}
+
+body.is-playing .chart{background:#d9c18f url('/textures/chart-paper.svg') center/100% 100%;border:3px double #6e796a;box-shadow:0 8px 28px #101d2755,inset 0 0 24px #6c4b272b}
+#recover[hidden]{display:none}

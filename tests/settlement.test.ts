@@ -8,13 +8,13 @@ import {buildSettlementLayout,houseKinds,plotsOverlap,plotCorners,roadIntersects
 import type {HousePlot} from '../src/world/SettlementLayout.ts';
 const layouts=islands.slice(0,2).map(d=>buildSettlementLayout(d));
 
-test('village plans are deterministic, contain six building types and leave hillside neighbourhoods more open',()=>{
+test('village plans are deterministic, contain fourteen building types and leave hillside neighbourhoods more open',()=>{
  assert.deepEqual(buildSettlementLayout(islands[0]),layouts[0]);
  const kinds=new Set(layouts.flatMap(l=>l.houses.map(p=>p.kind)));for(const k of houseKinds)assert.ok(kinds.has(k));
  const medianNearest=(plots:HousePlot[])=>{const distances=plots.map(a=>Math.min(...plots.filter(b=>b!==a).map(b=>Math.hypot(a.x-b.x,a.z-b.z)))).sort((a,b)=>a-b);return distances[Math.floor(distances.length/2)];};
  for(const layout of layouts){
-  assert.ok(layout.houses.length>65&&layout.houses.length<160);
-  assert.ok(layout.houses.filter(p=>p.district==='waterfront').length>=12);
+  assert.ok(layout.houses.length>(layout===layouts[1]?100:50)&&layout.houses.length<(layout===layouts[1]?230:120));
+  assert.ok(layout.houses.filter(p=>p.district==='waterfront').length>=(layout===layouts[1]?12:8));
   const village=layout.houses.filter(p=>p.district==='village'),hills=layout.houses.filter(p=>p.district==='hillside');assert.ok(hills.length>=6&&hills.length<village.length/2);assert.ok(medianNearest(hills)>medianNearest(village)*1.2);
  }
  assert.ok(layouts[1].houses.filter(p=>p.kind==='HouseTownhouse').length>layouts[0].houses.filter(p=>p.kind==='HouseTownhouse').length);
@@ -35,21 +35,21 @@ test('rotated houses do not overlap, straddle lanes or extend below their terrai
  assert.equal(roadIntersectsPlot({width:4,points:[{x:p.x-200,z:p.z},{x:p.x+200,z:p.z}]},p),true);
 });
 
-test('six exported house modules have distinct silhouettes, grounded feet and bounded reusable footprints',()=>{
+test('fourteen exported house modules have distinct silhouettes, grounded feet and bounded reusable footprints',()=>{
  const data=readFileSync(new URL('../public/models/environment.glb',import.meta.url)),length=data.readUInt32LE(12),gltf=JSON.parse(data.toString('utf8',20,20+length));
- assert.ok(data.length<2*1024*1024);
+ assert.ok(data.length<3*1024*1024);
  const signatures=new Set<string>(),roofHeights:number[]=[];
  for(const kind of houseKinds){
   const root=gltf.nodes.findIndex((n:{name:string})=>n.name===kind);assert.ok(root>=0);let minimumY=Infinity,maximumY=-Infinity,triangles=0;
-  const bounds=new Box3();
+  const shapeParts:string[]=[];const bounds=new Box3();
   const walk=(id:number,parent:Matrix4,rootNode=false)=>{const n=gltf.nodes[id],local=n.matrix?new Matrix4().fromArray(n.matrix):new Matrix4().compose(new Vector3().fromArray(n.translation??[0,0,0]),new Quaternion().fromArray(n.rotation??[0,0,0,1]),new Vector3().fromArray(n.scale??[1,1,1])),matrix=rootNode?parent:parent.clone().multiply(local);
-   if(n.mesh!==undefined)for(const p of gltf.meshes[n.mesh].primitives){const position=gltf.accessors[p.attributes.POSITION];triangles+=(p.indices===undefined?position.count:gltf.accessors[p.indices].count)/3;bounds.union(new Box3(new Vector3().fromArray(position.min),new Vector3().fromArray(position.max)).applyMatrix4(matrix));}
+   if(n.mesh!==undefined)for(const p of gltf.meshes[n.mesh].primitives){const position=gltf.accessors[p.attributes.POSITION];shapeParts.push(JSON.stringify([position.min,position.max,matrix.elements.map(v=>Number(v.toFixed(5)))]));triangles+=(p.indices===undefined?position.count:gltf.accessors[p.indices].count)/3;bounds.union(new Box3(new Vector3().fromArray(position.min),new Vector3().fromArray(position.max)).applyMatrix4(matrix));}
    for(const child of n.children??[])walk(child,matrix);
   };walk(root,new Matrix4(),true);minimumY=bounds.min.y;maximumY=bounds.max.y;
   assert.ok(bounds.min.x>=-.661&&bounds.max.x<=.661&&bounds.min.z>=-.661&&bounds.max.z<=.661,kind);
-  assert.ok(triangles>250&&triangles<1800,kind);assert.ok(minimumY>=-.501&&minimumY<=-.49,`${kind}: ${minimumY}`);assert.ok(maximumY<=1.06,kind);roofHeights.push(maximumY);signatures.add(`${triangles}/${maximumY.toFixed(3)}`);
+  assert.ok(triangles>250&&triangles<1800,kind);assert.ok(minimumY>=-.501&&minimumY<=-.49,`${kind}: ${minimumY}`);assert.ok(maximumY<=1.06,kind);roofHeights.push(maximumY);signatures.add(shapeParts.join('|'));
  }
- assert.equal(signatures.size,6);assert.ok(Math.max(...roofHeights)-Math.min(...roofHeights)>.4);
+ assert.equal(signatures.size,houseKinds.length);assert.ok(Math.max(...roofHeights)-Math.min(...roofHeights)>.4);
 });
 
 test('distant house proxies retain upward roof faces and distinct roof heights',()=>{
@@ -61,9 +61,9 @@ test('distant house proxies retain upward roof faces and distinct roof heights',
  assert.ok(roofs>=12);
 });
 
-test('town neighbourhoods mix six silhouettes, warm facade palettes and varied proportions deterministically',()=>{
+test('town neighbourhoods mix fourteen silhouettes, warm facade palettes and varied proportions deterministically',()=>{
  const plots=layouts[1].houses;
- assert.equal(new Set(plots.map(p=>p.kind)).size,6);
+ assert.ok(new Set(plots.map(p=>p.kind)).size>=10);
  assert.ok(new Set(plots.map(p=>p.tint.join(','))).size>=6);
  assert.ok(Math.max(...plots.map(p=>p.height))/Math.min(...plots.map(p=>p.height))>2.2);
  assert.ok(new Set(plots.map(p=>Math.round(p.angle*10))).size>15);

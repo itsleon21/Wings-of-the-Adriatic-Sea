@@ -1,0 +1,21 @@
+export type Role='rescue'|'tourism'|'racing';
+export type Slot='power'|'structure'|'water';
+export interface Part{id:string;aircraft:string;slot:Slot;name:string;cost:number;effect:string;kind:string}
+const schemes=[['power','发动机调校','engine',600,'加速提升；增加散热需求'],['power','螺旋桨匹配','propeller',750,'起飞响应提升；极速略降'],['structure','轻量结构','frame',900,'爬升与滚转响应提升；抗风稳定性降低'],['structure','散热器改良','radiator',800,'持续动力更稳定；略增重量'],['water','低阻浮筒／船底','float',700,'滑跑阻力降低；低速稳定性略降'],['water','稳定浮筒／船底','float',650,'水面靠泊稳定；起飞距离略增']] as const;
+export const parts:Part[]=['redwing','m5','mc72'].flatMap(aircraft=>schemes.map(([slot,name,kind,cost,effect],i)=>({id:`${aircraft}-${i}`,aircraft,slot,name,cost,effect,kind})));
+export class Workshop{
+ credits=0;reputation:Record<Role,number>={rescue:0,tourism:0,racing:0};owned:string[]=[];equipped:Record<string,string>={};private storage?:Pick<Storage,'getItem'|'setItem'>;
+ constructor(storage?:Pick<Storage,'getItem'|'setItem'>){try{this.storage=storage??globalThis.localStorage;const d=JSON.parse(this.storage?.getItem('adriatic.workshop.v1')??'null');if(d){this.credits=Number.isFinite(d.credits)?Math.max(0,d.credits):0;for(const role of ['rescue','tourism','racing'] as Role[])this.reputation[role]=Number.isFinite(d.reputation?.[role])?Math.max(0,d.reputation[role]):0;this.owned=parts.filter(p=>Array.isArray(d.owned)&&d.owned.includes(p.id)).map(p=>p.id);for(const p of parts)if(d.equipped?.[p.aircraft+':'+p.slot]===p.id&&this.owned.includes(p.id))this.equipped[p.aircraft+':'+p.slot]=p.id;}}catch{}}
+ save(){try{this.storage?.setItem('adriatic.workshop.v1',JSON.stringify({credits:this.credits,reputation:this.reputation,owned:this.owned,equipped:this.equipped}));}catch{}}
+ reward(role:Role,bonus=0,reputation=10){this.credits+=250+Math.max(0,Math.min(100,Number.isFinite(bonus)?bonus:0));this.reputation[role]+=Math.max(0,Math.min(15,Number.isFinite(reputation)?reputation:10));this.save();}
+ buy(id:string){const p=parts.find(p=>p.id===id);if(!p||this.owned.includes(id)||this.credits<p.cost)return false;this.credits-=p.cost;this.owned.push(id);this.save();return true;}
+ equip(id:string){const p=parts.find(p=>p.id===id);if(!p||!this.owned.includes(id))return false;this.equipped[p.aircraft+':'+p.slot]=id;this.save();return true;}
+}
+
+export const partNames:Record<string,string[]>={redwing:['直列发动机增压调校','起飞型木桨','轻量桁架','紧凑散热组件','低阻船底','稳定船底'],m5:['V.4B 动力调校','推式木桨匹配','轻量木桁架','水冷散热组件','低阻翼下浮筒','稳定翼下浮筒'],mc72:['AS.6 动力调校','同轴双桨匹配','轻量支撑结构','表面散热组件','低阻双浮筒','稳定双浮筒']};
+for(const p of parts){p.name=partNames[p.aircraft][Number(p.id.split('-').at(-1))];p.effect=['推力 +12% · 阻力 +3%','推力 +8% · 极速上限 −4%','姿态响应 +14% · 起飞空速 −4%','阻力 −6% · 推力 −2%','水阻 −18% · 安全着水下降率 −8%','水阻 +12% · 安全着水下降率 +15%'][Number(p.id.split('-').at(-1))];}
+export function configuredParts(w:Workshop,aircraft:string,search:string){const q=new URLSearchParams(search);if(q.get('configuration')==='stock'||q.get('race')==='1'&&q.get('configuration')!=='modified')return [];const trial=parts.find(p=>p.id===q.get('trial')&&p.aircraft===aircraft);if(trial&&q.get('race')!=='1')return [...parts.filter(p=>p.aircraft===aircraft&&p.slot!==trial.slot&&w.equipped[aircraft+':'+p.slot]===p.id&&w.owned.includes(p.id)),trial];return parts.filter(p=>p.aircraft===aircraft&&w.equipped[aircraft+':'+p.slot]===p.id&&w.owned.includes(p.id));}
+export function applyParts<T extends {thrust:number;drag:number;maxSpeed:number;attitudeResponse:number;takeoffSpeed:number;waterDrag:number;safeLandingSink:number}>(base:T,selected:Part[]):T{const t={...base};for(const p of selected){switch(Number(p.id.split('-').at(-1))){case 0:t.thrust*=1.12;t.drag*=1.03;break;case 1:t.thrust*=1.08;t.maxSpeed*=.96;break;case 2:t.attitudeResponse*=1.14;t.takeoffSpeed*=.96;break;case 3:t.drag*=.94;t.thrust*=.98;break;case 4:t.waterDrag*=.82;t.safeLandingSink*=.92;break;case 5:t.waterDrag*=1.12;t.safeLandingSink*=1.15;}}return t;}
+
+/** Trial sessions copy progress but never write back to browser storage. */
+export function trialStorage(storage:Pick<Storage,'getItem'|'setItem'>){const changes=new Map<string,string>();return {getItem:(key:string)=>changes.has(key)?changes.get(key)!:storage.getItem(key),setItem:(key:string,value:string)=>{changes.set(key,value);}};}

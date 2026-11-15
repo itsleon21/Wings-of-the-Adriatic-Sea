@@ -1,0 +1,125 @@
+/* Riveted dark cases and independently legible mechanical gauges. Compass styles untouched. */
+body.is-playing .instrument-cluster.telemetry{position:fixed;left:24px;bottom:22px;width:456px;padding:12px 14px 10px;display:block;min-height:0;background:linear-gradient(135deg,#323a3c,#151e22 70%);border:1px solid #8b9695;border-top:1px solid #b2b8ad;border-radius:12px 12px 4px 4px;box-shadow:inset 0 0 0 3px #152126,inset 0 0 0 4px #60706e,0 8px 24px #071b2c66;color:#efe6c9;backdrop-filter:none}
+.instrument-cluster::before,.instrument-cluster::after{content:'+';position:absolute;top:8px;font:11px Georgia;color:#9faaa0;text-shadow:0 1px #050c0e}.instrument-cluster::before{left:8px}.instrument-cluster::after{right:8px}
+body.is-playing .instrument-cluster .instrument-label{min-width:0;text-align:center;font:8px Georgia,serif;letter-spacing:2px;color:#b7beb0;margin:1px 0 7px}.dial-row{display:flex;gap:6px;justify-content:space-between}.flight-dial{width:100px;margin:0;flex-shrink:0}.flight-dial svg{display:block;width:100%;overflow:visible}.flight-dial .bezel{fill:#434b4a;stroke:#080f12;stroke-width:2}.flight-dial .dial-face{fill:#111b20;stroke:#8b9289;stroke-width:.7}.flight-dial path.major{stroke:#eee5c4;stroke-width:1}.flight-dial path.minor{stroke:#adb6a8;stroke-width:.5}.flight-dial svg text{fill:#ede6cf;font:7px Georgia,serif;text-anchor:middle}.flight-dial svg .dial-unit{font:5px Georgia;fill:#afb7a6;letter-spacing:.3px}.dial-needle{transform:rotate(var(--angle));transition:transform .12s linear}.dial-needle path{fill:#eddec0;stroke:#0a1014;stroke-width:.4}.dial-hub{fill:#af9f78;stroke:#111;stroke-width:1}.dial-glass{fill:none;stroke:#fff;stroke-opacity:.09;stroke-width:6;stroke-linecap:round}
+.flight-dial figcaption{display:flex;justify-content:center;align-items:center;gap:5px;font-size:9px;color:#c7cebc;white-space:nowrap}.flight-dial figcaption b,body.is-playing .telemetry .flight-dial b{font:12px Georgia,serif;margin:0;color:#f2e5c7;display:inline}.power-strip{display:flex;align-items:center;gap:9px;margin:10px 6px 1px;border-top:1px solid #71807b66;padding-top:7px}.instrument-cluster .power-strip b{font:12px Georgia;margin:0;display:block}.instrument-cluster .power-strip b span{font-size:9px}.instrument-cluster .power-strip small{font-size:8px;color:#c6cdbb;letter-spacing:1px}.instrument-cluster .throttle-track{flex:1;height:5px;width:auto;margin:0;background:#060e13;border:1px solid #65746c}.instrument-cluster .throttle-track span{background:#bba77a}
+body.is-playing :is(.mission-panel,.landing-assist,.flight-tools,.top-actions),body.is-playing .journey-tools button,#race-status{background:linear-gradient(115deg,#26393deF,#101e27f2);border:1px solid #87938d;border-radius:5px;box-shadow:inset 0 0 0 2px #101c24,0 4px 16px #0b1f3340}
+body.is-playing .mission-panel{border-left:3px solid #ba9b63;padding:15px 17px;max-width:250px}body.is-playing .mission-panel h2{font-size:18px;letter-spacing:.04em}.mission-panel .eyebrow{color:#bdaf8a}
+body.is-playing .commission-hint{left:24px;bottom:218px;width:340px;max-width:calc(100vw - 48px);font-size:11px;line-height:1.8;background:linear-gradient(120deg,#eee7d4f2,#d9d3bcf2);border:1px solid #7c8b7d;border-left:3px solid #9b5c3d;color:#203b40;box-shadow:0 4px 16px #09223533;border-radius:3px}
+body.is-playing .bottom-hint{bottom:207px;left:25px;max-width:400px;font-size:10px;line-height:1.7;background:#172831e8;border-left:2px solid #baa47b;padding:7px 10px}
+body.is-playing .landing-assist{top:auto;bottom:210px;right:24px;border-top:3px double #bca67f;width:240px}body.is-playing .landing-assist h3{color:#efe3c5;font:17px 'Songti SC',Georgia,serif}body.is-playing .mooring-hint{bottom:215px;left:50%;transform:translateX(-50%);background:#eee6d1ed;color:#283f40;border:1px solid #b19f79;padding:9px 14px;box-shadow:0 3px 12px #08253640;font-size:11px}.journey-tools{bottom:166px}
+body.is-playing .flight-tools{bottom:24px}.is-playing .toast{bottom:224px;background:#e9dfc7;color:#243d40;border:1px solid #ac9671}.instrument-cluster svg{pointer-events:none}
+@media(max-width:1000px){body.is-playing .instrument-cluster.telemetry{left:18px;bottom:18px;width:375px;padding:10px}.flight-dial{width:83px}.flight-dial figcaption{font-size:8px}.flight-dial figcaption b,body.is-playing .telemetry .flight-dial b{font-size:11px}body.is-playing .commission-hint{bottom:200px;left:18px}body.is-playing .bottom-hint{bottom:185px}}
+@media(max-width:650px){body.is-playing .instrument-cluster.telemetry{left:12px;bottom:12px;width:260px;padding:8px}.flight-dial{width:74px}.flight-dial:last-child{display:none}body.is-playing .instrument-cluster .instrument-label{font-size:6px;letter-spacing:1px}.flight-dial figcaption{font-size:7px}.power-strip{margin-top:6px}.instrument-cluster .power-strip small{font-size:7px}body.is-playing .commission-hint{left:12px;bottom:185px;width:260px;font-size:10px}body.is-playing .bottom-hint{left:12px;bottom:167px;max-width:260px}.journey-tools{bottom:186px}body.is-playing .landing-assist{bottom:228px;right:12px;width:205px}body.is-playing .mooring-hint{bottom:172px;max-width:75vw;font-size:10px}}
+@media(prefers-reduced-motion:reduce){.dial-needle{transition:none}}
+/* One compact flight deck; the horizon and all four corners stay open. */
+body.is-playing .topbar .identity{display:none}
+body.is-playing .topbar{position:static;padding:0;height:0;pointer-events:none}
+body.is-playing .top-actions{display:none;position:fixed;left:50%;right:auto;top:auto;bottom:155px;transform:translateX(-50%);max-width:calc(100vw - 28px);flex-wrap:wrap;justify-content:center;pointer-events:auto;padding:12px 16px;gap:12px}
+body.is-playing.deck-environment-open .top-actions{display:flex}
+body.is-playing .instrument-cluster.telemetry{left:calc(50% - 285px);bottom:18px;width:310px;padding:8px 10px 7px;border-radius:10px 10px 4px 4px;background:linear-gradient(135deg,#283437e8,#101d25ed);box-shadow:inset 0 0 0 2px #61716b66,0 4px 16px #071b2c33}
+body.is-playing .instrument-cluster .instrument-label{display:none}
+body.is-playing .flight-dial{width:66px;display:block}
+body.is-playing .flight-dial figcaption{font-size:8px;gap:3px}
+body.is-playing .telemetry .flight-dial b{font-size:10px}
+body.is-playing .power-strip{margin:6px 3px 0;padding-top:5px;gap:6px}
+body.is-playing .deck-shortcuts{position:fixed;left:calc(50% + 38px);bottom:18px;width:248px;display:grid;grid-template-columns:1fr 1fr;gap:5px;pointer-events:auto}
+body.is-playing .deck-shortcuts button{min-height:35px;padding:6px 9px;font:11px 'Songti SC',Georgia,serif;letter-spacing:.08em;color:#f0e7cf;background:#132b35dc;border:1px solid #7c918b8c;border-radius:3px;box-shadow:inset 0 0 0 2px #263e4333}
+body.is-playing .deck-shortcuts button[aria-expanded=true]{background:#e7ddc3;color:#17323b}
+body.is-playing .deck-shortcuts button:hover{border-color:#eee1bd}
+body.is-playing .deck-shortcuts .journey-tools{position:static;display:contents;transform:none}
+body.is-playing .deck-shortcuts .journey-tools button{position:static;margin:0}
+body.is-playing .flight-tools{display:none;left:calc(50% + 38px);right:auto;bottom:102px;width:248px;padding:10px;grid-template-columns:1fr 1fr;gap:6px}
+body.is-playing.deck-tools-open .flight-tools{display:grid}
+body.is-playing .flight-tools button{min-height:34px;font-size:10px}
+body.is-playing .mission-panel{display:none;top:auto;left:50%;bottom:155px;transform:translateX(-50%);width:340px;max-width:calc(100vw - 28px);padding:12px 15px}
+body.is-playing.deck-mission-open .mission-panel,body.is-playing .mission-panel[data-mode=running]{display:block}
+body.is-playing .mission-panel h2{font-size:16px;margin:6px 0}
+body.is-playing .mission-panel p{font-size:11px}
+body.is-playing .bottom-hint{display:none}
+body.is-playing .mooring-hint{bottom:172px;padding:6px 12px;font-size:10px;max-width:calc(100vw - 30px)}
+body.is-playing .commission-hint{left:50%;bottom:185px;transform:translateX(-50%);width:400px;padding:8px 12px}
+body.is-playing .landing-assist{left:50%;right:auto;bottom:155px;transform:translateX(-50%);width:300px;padding:12px}
+body.is-playing .toast{bottom:195px}
+@media(max-width:650px){body.is-playing .instrument-cluster.telemetry{left:50%;transform:translateX(-50%);bottom:58px;width:286px;padding:7px 9px}body.is-playing .flight-dial{width:60px}body.is-playing .deck-shortcuts{left:50%;transform:translateX(-50%);bottom:12px;width:286px;grid-template-columns:repeat(4,1fr)}body.is-playing .deck-shortcuts button{font-size:9px;min-height:34px;padding:5px}body.is-playing .flight-tools{left:50%;transform:translateX(-50%);bottom:185px;width:286px}body.is-playing .top-actions,body.is-playing .mission-panel,body.is-playing .landing-assist{bottom:185px}body.is-playing .mooring-hint{bottom:180px}body.is-playing .commission-hint{bottom:215px;width:286px}}
+/* Seat-view HUD: independent instruments at the lower edges, open centre. */
+body.is-playing .instrument-cluster.telemetry{display:contents;transform:none;background:none;border:0;box-shadow:none}
+body.is-playing .instrument-cluster::before,body.is-playing .instrument-cluster::after{display:none}
+body.is-playing .instrument-pair{position:fixed;bottom:18px;width:186px;padding:0;pointer-events:none;background:none;border:0;min-width:0}
+body.is-playing .instrument-left{left:20px}
+body.is-playing .instrument-right{right:20px}
+body.is-playing .instrument-pair .dial-row{gap:10px;justify-content:space-between}
+body.is-playing .instrument-pair .flight-dial{width:88px;margin:0;filter:drop-shadow(0 2px 3px #061b2855)}
+body.is-playing .flight-dial figcaption{font-size:10px;line-height:18px;text-shadow:0 1px 3px #001c2d,0 0 4px #001c2d;color:#fff1d3}
+body.is-playing .telemetry .flight-dial b{font-size:12px;color:#fff1d3}
+body.is-playing .instrument-left .power-strip{margin:5px 5px 0;border:0;padding:0;height:14px}
+body.is-playing .instrument-left .power-strip small,body.is-playing .instrument-left .power-strip b{color:#fff1d3;text-shadow:0 1px 3px #001c2d}
+body.is-playing .instrument-right{padding-bottom:19px}
+body.is-playing .deck-shortcuts{left:50%;transform:translateX(-50%);width:300px;bottom:18px;grid-template-columns:repeat(4,1fr);gap:4px;opacity:.7;transition:opacity .2s}
+body.is-playing .deck-shortcuts:hover,body.is-playing .deck-shortcuts:focus-within{opacity:1}
+body.is-playing .deck-shortcuts button{font-size:10px;letter-spacing:0;padding:5px 6px;min-height:30px;background:#102c358c;box-shadow:none;border-color:#a0b4ab66}
+body.is-playing .deck-shortcuts kbd{display:none}
+body.is-playing .flight-tools{left:50%;transform:translateX(-50%);bottom:62px;width:300px}
+body.is-playing .top-actions{bottom:62px}
+body.is-playing .mission-panel{bottom:70px}
+body.is-playing .mission-panel[data-mode=running]:not(:hover){background:#142e37b8}
+body.is-playing .mission-panel[data-mode=running] .eyebrow,body.is-playing .mission-panel[data-mode=running] #mission-description{display:none}
+body.is-playing .mission-panel[data-mode=running] h2{font-size:14px;margin:0}
+body.is-playing .commission-hint{bottom:108px;padding:6px 10px;font-size:10px;width:360px;background:#172f38c9;color:#f0e7cf;border:1px solid #9dac9e66;box-shadow:none}
+body.is-playing .mooring-hint{bottom:60px;background:#142f38b8;color:#f4ead0;border-color:#b7c5b15c;box-shadow:none;padding:5px 9px}
+body.is-playing .toast{bottom:150px;font-size:10px;padding:6px 10px}
+body.is-playing .landing-assist{bottom:66px;width:270px}
+@media(max-width:760px){body.is-playing .instrument-pair{width:150px;bottom:54px}body.is-playing .instrument-left{left:12px}body.is-playing .instrument-right{right:12px}body.is-playing .instrument-pair .flight-dial{width:70px}body.is-playing .flight-dial figcaption{font-size:8px}body.is-playing .telemetry .flight-dial b{font-size:10px}body.is-playing .deck-shortcuts{bottom:10px;width:280px}body.is-playing .commission-hint{bottom:165px;width:280px}body.is-playing .mooring-hint{bottom:148px}body.is-playing .flight-tools,body.is-playing .top-actions,body.is-playing .mission-panel,body.is-playing .landing-assist{bottom:165px}body.is-playing .toast{bottom:205px}}
+@media(prefers-reduced-motion:reduce){body.is-playing .deck-shortcuts{transition:none}}
+
+/* Keep landing water ahead unobstructed. */
+body.is-playing .landing-assist{left:auto;right:20px;bottom:172px;transform:none;width:250px;max-width:calc(100vw - 40px)}
+@media(max-width:760px){body.is-playing .landing-assist{right:12px;bottom:180px;width:220px}}
+/* Four-corner flight layout, with a clear approach corridor through the centre. */
+body.is-playing .topbar{position:fixed;top:20px;left:24px;right:24px;height:58px;display:flex;justify-content:space-between;align-items:center;padding:0}
+body.is-playing .topbar .identity{display:flex}
+body.is-playing .top-actions{display:flex;position:static;transform:none;max-width:540px;padding:8px 12px;gap:10px}
+body.is-playing .mission-panel{display:block;left:24px;top:104px;bottom:auto;transform:none;width:210px;padding:11px 14px}
+body.is-playing .mission-panel .eyebrow{font-size:8px}
+body.is-playing .mission-panel h2{font-size:16px}
+body.is-playing .deck-shortcuts{left:auto;right:24px;bottom:160px;transform:none;width:240px;grid-template-columns:repeat(3,1fr);opacity:.9}
+body.is-playing #deck-environment{display:none}
+body.is-playing .flight-tools{left:auto;right:24px;bottom:202px;transform:none;width:240px}
+body.is-playing .landing-assist{bottom:244px;right:24px}
+body.is-playing .commission-hint{left:24px;bottom:168px;transform:none;width:300px}
+body.is-playing .mooring-hint{bottom:24px}
+@media(max-width:900px){body.is-playing .topbar .identity{display:none}body.is-playing .topbar{justify-content:flex-end}body.is-playing .top-actions{max-width:50vw;gap:5px}body.is-playing .deck-shortcuts{right:12px;bottom:168px;width:220px}body.is-playing .mission-panel{left:12px;width:170px}body.is-playing .flight-tools{right:12px;bottom:210px;width:220px}body.is-playing .landing-assist{right:12px;bottom:250px;width:220px}body.is-playing .commission-hint{left:12px;bottom:198px;width:160px}}
+/* A single full-width command rail, below the larger two-pair gauges. */
+body.is-playing .mission-panel,body.is-playing.deck-mission-open .mission-panel,body.is-playing .mission-panel[data-mode=running]{display:none}
+body.is-playing #deck-mission,body.is-playing #deck-environment{display:none}
+body.is-playing .cockpit-commandbar{position:fixed;z-index:12;bottom:0;left:0;right:0;min-height:49px;padding:7px 22px;display:flex;justify-content:center;align-items:center;gap:26px;background:linear-gradient(#263e43ed,#10242bf5);border-top:1px solid #a4aa9277;box-shadow:0 -2px 14px #102a3330;pointer-events:auto}
+body.is-playing .cockpit-commandbar .deck-shortcuts{position:static;display:flex;transform:none;width:auto;gap:7px;opacity:1}
+body.is-playing .cockpit-commandbar .top-actions{position:static;display:flex;transform:none;background:none;border:0;box-shadow:none;padding:0;gap:12px;max-width:none;flex-wrap:nowrap}
+body.is-playing .cockpit-commandbar .deck-shortcuts button{min-height:32px;font-size:11px;padding:6px 10px;background:#ffffff05;border:1px solid #abb7a34d}
+body.is-playing .cockpit-commandbar kbd,body.is-playing .cockpit-commandbar .deck-shortcuts kbd{display:inline-block;font:9px Georgia,serif;margin-left:6px;padding:2px 4px;border:1px solid #c4cdb36b;border-radius:2px;color:#e3d4ac}
+body.is-playing .cockpit-commandbar #deck-tools::after{content:'H';font:9px Georgia;margin-left:6px;border:1px solid #c4cdb36b;padding:2px 4px}
+body.is-playing .instrument-pair{bottom:68px;width:256px}
+body.is-playing .instrument-pair .flight-dial{width:122px}
+body.is-playing .instrument-right{padding-bottom:21px}
+.flight-dial .outer-bezel{fill:#172429;stroke:#9aa39a;stroke-width:1}
+.flight-dial .bezel{fill:#55605e;stroke:#0a1419;stroke-width:1.4}
+.flight-dial .bezel-inner{fill:#263338;stroke:#c0c1ac;stroke-width:.6}
+.flight-dial .dial-face{fill:#0b161e;stroke:#84938b;stroke-width:.6}
+.flight-dial .hub-screw{fill:#313e41;stroke:#e0d2ac;stroke-width:.4}
+body.is-playing .flight-dial svg text{font-size:7.7px;fill:#fff4d9}
+body.is-playing .flight-dial figcaption{font-size:11px;line-height:23px;gap:7px}
+body.is-playing .telemetry .flight-dial b{font:18px Georgia,serif;font-variant-numeric:tabular-nums;background:#0c222ad9;padding:1px 6px;border:1px solid #afba9f66;border-radius:2px}
+body.is-playing .flight-dial .dial-unit{font-size:5.4px}
+body.is-playing .instrument-left .power-strip{margin-top:6px}
+body.is-playing .instrument-left .power-strip b{font-size:16px}
+body.is-playing .flight-tools{bottom:60px;left:calc(50% - 340px);right:auto;transform:none;width:250px}
+body.is-playing .mooring-hint{bottom:62px}
+body.is-playing .landing-assist{bottom:259px}
+body.is-playing .commission-hint{bottom:255px}
+body.is-playing .toast{bottom:270px}
+@media(max-width:1050px){body.is-playing .cockpit-commandbar{gap:10px;padding:6px 10px;flex-wrap:wrap}body.is-playing .cockpit-commandbar .top-actions{gap:8px}body.is-playing .cockpit-commandbar .top-actions .weather-selector>span{display:none}body.is-playing .instrument-pair{width:220px}body.is-playing .instrument-pair .flight-dial{width:104px}}
+@media(max-width:650px){body.is-playing .cockpit-commandbar{gap:5px;padding:5px 8px}body.is-playing .cockpit-commandbar .top-actions{width:100%;justify-content:center}body.is-playing .cockpit-commandbar .deck-shortcuts button{min-height:28px;padding:4px 8px}body.is-playing .instrument-pair{bottom:94px;width:164px}body.is-playing .instrument-pair .flight-dial{width:77px}body.is-playing .flight-dial svg text{font-size:8px}body.is-playing .flight-dial figcaption{font-size:9px;gap:3px}body.is-playing .telemetry .flight-dial b{font-size:13px;padding:0 3px}body.is-playing .flight-tools{left:12px;bottom:100px;width:230px}body.is-playing .mooring-hint{bottom:260px}body.is-playing .landing-assist{bottom:275px}body.is-playing .commission-hint{bottom:278px}body.is-playing .toast{bottom:325px}}
+body.is-playing.hud-hidden .cockpit-commandbar{display:none!important}
+body.is-playing .cockpit-commandbar #deck-tools::after{content:none}
+body:not(.is-playing) .cockpit-commandbar{position:fixed;top:24px;right:24px;z-index:10}
+body:not(.is-playing) .cockpit-commandbar .deck-shortcuts{display:none}

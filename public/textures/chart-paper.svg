@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+ <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".65 .12" numOctaves="3" stitchTiles="stitch" seed="31"/><feColorMatrix type="saturate" values="0"/></filter>
+ <radialGradient id="age"><stop stop-color="#eddbab"/><stop offset=".75" stop-color="#dbc08b"/><stop offset="1" stop-color="#b69963"/></radialGradient>
+</defs>
+<path fill="url(#age)" d="M0 0h512v512H0z"/>
+<path filter="url(#paper)" opacity=".18" style="mix-blend-mode:multiply" d="M0 0h512v512H0z"/>
+<g fill="none" stroke="#957f54" opacity=".10"><path d="M0 88Q240 75 512 106M0 302Q210 330 512 289M80 0Q72 230 100 512M430 0Q410 200 440 512"/></g>
+</svg>

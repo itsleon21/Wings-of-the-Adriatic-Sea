@@ -5,7 +5,7 @@ import {addCoralBiome} from '../src/world/ArchipelagoDetails.ts';
 
 test('all six islands fit the extended chart and the five rebuilt footprints follow the reference',()=>{
  assert.equal(islands.length,6);assert.equal(WorldBounds.size,12000);
- for(const [id,width,depth,height] of[['harbor',1050,900,145],['town',1420,1240,216],['lighthouse',620,700,130],['pine',820,760,160],['coral',460,390,24]] as const){
+ for(const [id,width,depth,height] of[['harbor',945,810,145],['town',1728,1170,126],['lighthouse',620,700,130],['pine',820*Math.SQRT1_2,760*Math.SQRT1_2,160],['coral',900,740,24]] as const){
   const d=islands.find(d=>d.id===id)!;assert.equal(d.rx*2,width);assert.equal(d.rz*2,depth);assert.equal(d.height,height);
  }
 });
@@ -25,7 +25,10 @@ test('coral cay stays low and sandy while pine island has a substantial wooded u
  for(let x=-coral.rx;x<=coral.rx;x+=10)for(let z=-coral.rz;z<=coral.rz;z+=10){const h=terrainHeight(coral,coral.x+x,coral.z+z);assert.ok(h<=24);if(h>0){land++;if(h<7)beach++;}}
  assert.ok(beach/land>.5);
  for(let x=-pine.rx;x<pine.rx;x+=20)for(let z=-pine.rz;z<pine.rz;z+=20)if(terrainHeight(pine,pine.x+x,pine.z+z)>80)upland++;
- assert.ok(upland>100);assert.equal(terrainHeight(islands[2],islands[2].x,islands[2].z),130);
+ assert.ok(upland>100);
+ const beacon=islands[2],summit=terrainHeight(beacon,beacon.x,beacon.z);
+ assert.ok(summit>50&&summit<90,'beacon stands on the low headland');
+ assert.ok(terrainHeight(beacon,beacon.x-beacon.rx*.18,beacon.z-beacon.rz*.37)>summit+20,'northern ridge rises behind the beacon');
 });
 test('coral palms have finite curved trunks and drooping fronds with grounded bounds',()=>{
  const root=new Group(),d=islands.find(d=>d.id==='coral')!;addCoralBiome(root,d);

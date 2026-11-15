@@ -1,7 +1,9 @@
+import {createSettlementLightMap} from './SettlementLightMap.ts';
 import * as T from 'three';
 
 /** World-space grain works across terrain, rotated houses and reusable rock instances. */
 export class IslandSurface {
+ private night={value:0};private district=createSettlementLightMap([]);
  private wetness={value:0};private texture:T.DataTexture;private prepared=new WeakSet<T.Material>();
  constructor(){
   const size=128,data=new Uint8Array(size*size);let seed=71;
@@ -10,9 +12,22 @@ export class IslandSurface {
  }
  prepare(root:T.Object3D){root.traverse(object=>{if(!(object instanceof T.Mesh))return;for(const material of Array.isArray(object.material)?object.material:[object.material]){
   if(!(material instanceof T.MeshStandardMaterial)||this.prepared.has(material))continue;this.prepared.add(material);
-  material.onBeforeCompile=shader=>{
-   shader.uniforms.islandGrain={value:this.texture};shader.uniforms.islandWetness=this.wetness;
+  const previousCompile=material.onBeforeCompile,previousKey=material.customProgramCacheKey();
+  material.onBeforeCompile=(shader,renderer)=>{previousCompile.call(material,shader,renderer);
+   shader.uniforms.islandGrain={value:this.texture};shader.uniforms.islandWetness=this.wetness;shader.uniforms.districtNight=this.night;shader.uniforms.districtMap={value:this.district.texture};shader.uniforms.districtAreas={value:this.district.areas};
    const architecture=Boolean(material.userData.architecture);
+   const bakedAO=Boolean(material.userData.architectureAO);
+   if(bakedAO){
+    shader.vertexShader='attribute float surfaceAO; varying float vSurfaceAO;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvSurfaceAO=surfaceAO;');
+    shader.fragmentShader='varying float vSurfaceAO;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>',`#include <aomap_fragment>
+     float localVisibility=clamp(vSurfaceAO,.36,1.);
+     reflectedLight.indirectDiffuse*=localVisibility;
+     reflectedLight.indirectSpecular*=mix(1.,localVisibility,.45);`);
+   }
+   shader.fragmentShader='uniform float districtNight;uniform sampler2D districtMap;uniform vec4 districtAreas[2];\n'+shader.fragmentShader;
+   const rockAsset=Boolean(material.userData.coastalRock);
    const terrain=Boolean(material.userData.terrainBiome),sand=material.userData.terrainBiome==='sand';
    shader.vertexShader=(architecture?'varying vec3 vBuildingPoint;varying vec3 vBuildingNormal;\n':'')+'varying vec3 vIslandSurface;varying vec3 vIslandNormal;\n'+shader.vertexShader;
    shader.vertexShader=shader.vertexShader.replace('#include <defaultnormal_vertex>','#include <defaultnormal_vertex>\nvIslandNormal=inverseTransformDirection(normalize(transformedNormal),viewMatrix);');
@@ -34,44 +49,82 @@ export class IslandSurface {
     float grain=dot(vec3(texture2D(islandGrain,vIslandSurface.yz*.07).r,texture2D(islandGrain,vIslandSurface.xz*.07).r,texture2D(islandGrain,vIslandSurface.xy*.07).r),islandNormal);
     float mottling=texture2D(islandGrain,vIslandSurface.xz*.0031).r;
     ${terrain?`float cliff=smoothstep(.12,.48,1.-surfaceNormal.y);
-    vec3 rock=mix(vec3(.46,.39,.28),vec3(.70,.60,.43),mottling);
-    float strataPhase=vIslandSurface.y*.32+mottling*4.+grain*.65;
+    vec3 rock=mix(vec3(.43,.40,.32),vec3(.70,.65,.53),mottling);
+    float strataPhase=vIslandSurface.y*.16+mottling*7.+grain*.45;
     float strataAA=max(.03,fwidth(strataPhase));
     float strata=sin(strataPhase)/(1.+strataAA*strataAA*4.);
     vec2 cliffUV=vec2(dot(vIslandSurface.xz,normalize(vec2(.61,.79)))*.11,vIslandSurface.y*.022);
     float weathering=texture2D(islandGrain,cliffUV).r;
-    rock*=.88+.13*strata+.16*weathering;
+    rock*=.91+.045*strata+.19*weathering;
+    float waterline=1.-smoothstep(.3,4.2,vIslandSurface.y+grain*.7);
+    rock*=mix(vec3(1.),vec3(.57,.62,.60),waterline);
     rock=mix(rock,rock*vec3(.76,.79,.74),smoothstep(.57,.68,weathering)*.45);
-    vec3 grass=mix(vec3(.12,.28,.052),vec3(.27,.40,.095),mottling);
-    vec3 beach=vec3(.82,.70,.47);
+    vec3 grass=mix(vec3(.13,.25,.065),vec3(.27,.36,.105),mottling);
+    vec3 beach=mix(vec3(.49,.45,.34),vec3(.83,.74,.56),smoothstep(.6,3.8,vIslandSurface.y+grain*.8));
     float grassBreak=texture2D(islandGrain,vIslandSurface.xz*.018).r;
     float exposed=smoothstep(.57,.7,grassBreak)*smoothstep(10.,35.,vIslandSurface.y)*.34;
     vec3 inland=mix(grass,rock,max(cliff,exposed));
     diffuseColor.rgb=mix(beach,inland,smoothstep(${sand?'4.,18.':'3.,12.'},vIslandSurface.y));`:''}
+    ${rockAsset?`vec3 mineral=mix(vec3(.72,.70,.63),vec3(1.06,1.02,.91),smoothstep(.30,.72,mottling));
+    diffuseColor.rgb*=mineral;
+    float tideLine=1.-smoothstep(.5,3.5,vIslandSurface.y+grain*.5);
+    diffuseColor.rgb*=mix(vec3(1.),vec3(.49,.56,.54),tideLine);`:''}
     ${architecture?`// Tile seams are filtered over the pixel footprint and fade before becoming subpixel.
     float roof=step(diffuseColor.g*1.7,diffuseColor.r)*step(diffuseColor.b*2.,diffuseColor.r)*smoothstep(.03,.25,surfaceNormal.y);
+    float limewash=(mottling-.5)*.22+(grain-.5)*.10;
+    float wallDetail=1.-smoothstep(100.,320.,distance(cameraPosition,vIslandSurface));
+    float verticalGrain=texture2D(islandGrain,vec2((vBuildingPoint.x+vBuildingPoint.z)*.23,vBuildingPoint.y*.012)).r;
+    float rainStain=smoothstep(.52,.72,verticalGrain)*(.40+.60*grain);
+    float paleWall=smoothstep(.12,.32,dot(diffuseColor.rgb,vec3(.2126,.7152,.0722)))*(1.-roof)*(1.-abs(surfaceNormal.y));
+    diffuseColor.rgb*=mix(vec3(1.),vec3(.88,.89,.85),rainStain*paleWall*wallDetail);
+    diffuseColor.rgb*=mix(vec3(1.+limewash,1.+limewash*.87,1.+limewash*.68),vec3(1.),roof);
     float ridgeAxis=abs(vBuildingNormal.x)>abs(vBuildingNormal.z)?vBuildingPoint.z:vBuildingPoint.x;
     vec2 tile=vec2(ridgeAxis/.34+mod(floor(vBuildingPoint.y/.22),2.)*.5,vBuildingPoint.y/.22);
     vec2 aa=max(fwidth(tile),vec2(.025)),edge=min(fract(tile),1.-fract(tile));
     float seam=1.-smoothstep(.035,.035+aa.x,edge.x)*smoothstep(.05,.05+aa.y,edge.y);
     float cell=fract(sin(dot(floor(tile),vec2(12.9898,78.233)))*43758.5453);
     float tileDetail=(1.-smoothstep(.5,1.6,max(aa.x,aa.y)))*(1.-smoothstep(150.,280.,distance(cameraPosition,vIslandSurface)));
-    diffuseColor.rgb*=mix(1.,mix(.94,1.08,cell)*(1.-seam*.18),roof*tileDetail);`:''}
+    diffuseColor.rgb*=mix(1.,mix(.94,1.08,cell)*(1.-seam*.18),roof*tileDetail);
+    // Rounded pantiles catch the sun on alternate shoulders as the light moves.
+    float tileRelief=.018*cos(6.283185*tile.x)*roof*tileDetail+(grain-.5)*.022*paleWall*wallDetail;`:''}
     diffuseColor.rgb*=mix(.92,1.06,grain)*mix(.96,1.03,mottling);
     diffuseColor.rgb*=1.-islandWetness*.13;
     diffuseColor.rgb*=mix(.83,1.,smoothstep(-.5,6.,vIslandSurface.y));`);
+   if(architecture)shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    vec3 tileDx=dFdx(-vViewPosition),tileDy=dFdy(-vViewPosition);
+    vec3 tileU=cross(tileDy,normal),tileV=cross(normal,tileDx);
+    float tileDet=dot(tileDx,tileU);
+    vec3 tileGrad=dFdx(tileRelief)*tileU+dFdy(tileRelief)*tileV;
+    if(abs(tileDet)>1e-8)normal=normalize(abs(tileDet)*normal-sign(tileDet)*tileGrad);`);
+   if(architecture||terrain)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+    if(districtNight>.001){float districtGlow=0.;for(int i=0;i<2;i++){vec2 uv=(vIslandSurface.xz-districtAreas[i].xy)/districtAreas[i].zw+.5;if(all(greaterThan(uv,vec2(.002)))&&all(lessThan(uv,vec2(.998)))){uv.x=(uv.x+float(i))*.5;vec4 bounce=texture2D(districtMap,uv);districtGlow=max(districtGlow,bounce.r*exp(-abs(vIslandSurface.y-bounce.g*300.)/14.));}}
+    totalEmissiveRadiance+=diffuseColor.rgb*vec3(.40,.20,.075)*districtGlow*districtNight*${architecture?'1.':'.30'};}`);
+   if(architecture)shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+    // Fired terracotta has broad, restrained sun reflections; plaster stays matte.
+    roughnessFactor=mix(roughnessFactor,mix(.44,.35,islandWetness),roof);
+   `);
+   if(architecture)shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
+    float roofDay=roof*(1.-districtNight);
+    reflectedLight.directDiffuse*=1.+roofDay*.08;
+    reflectedLight.directSpecular*=1.+roofDay*.65;
+   `);
+   if(rockAsset)shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+    float wetStone=1.-smoothstep(.4,3.2,vIslandSurface.y);
+    roughnessFactor=mix(roughnessFactor,.48,wetStone*.8);`);
    if(terrain)shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     // Low-amplitude limestone relief perturbs shading only; mip filtering and footprint fade prevent sparkle.
     float rockSlope=smoothstep(.12,.48,1.-normalize(vIslandNormal).y);
-    float reliefPhase=vIslandSurface.y*.48+texture2D(islandGrain,vIslandSurface.xz*.012).r*3.;
+    float reliefPhase=vIslandSurface.y*.21+texture2D(islandGrain,vIslandSurface.xz*.012).r*6.;
     float reliefAA=fwidth(reliefPhase);
-    float relief=rockSlope*(sin(reliefPhase)*.14/(1.+reliefAA*reliefAA*4.)+texture2D(islandGrain,vIslandSurface.xz*.008).r*.012);
+    float relief=rockSlope*(sin(reliefPhase)*.12/(1.+reliefAA*reliefAA*4.)+texture2D(islandGrain,vIslandSurface.xz*.008).r*.045);
     vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition),r1=cross(sy,normal),r2=cross(normal,sx);float determinant=dot(sx,r1);
     vec3 reliefGradient=dFdx(relief)*r1+dFdy(relief)*r2;
     if(abs(determinant)>1e-8)normal=normalize(abs(determinant)*normal-sign(determinant)*reliefGradient);`);
   };
-  material.customProgramCacheKey=()=> `island-stratified-v5-${material.userData.terrainBiome??'asset'}-${Boolean(material.userData.architecture)}`;material.needsUpdate=true;
+  material.customProgramCacheKey=()=> `island-stratified-v9-${previousKey}-${material.userData.terrainBiome??'asset'}-${Boolean(material.userData.architecture)}-${Boolean(material.userData.coastalRock)}-${Boolean(material.userData.architectureAO)}`;material.needsUpdate=true;
  }});}
+ setNightLightSources(sites:readonly {x:number;y:number;z:number}[]){this.district.texture.dispose();this.district=createSettlementLightMap(sites);}
+ setNightness(value:number){this.night.value=T.MathUtils.clamp(value,0,1);}
  setWetness(value:number){this.wetness.value=T.MathUtils.clamp(value,0,1);}
- dispose(){this.texture.dispose();}
+ dispose(){this.district.texture.dispose();this.texture.dispose();}
 }

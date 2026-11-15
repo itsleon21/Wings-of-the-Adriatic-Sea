@@ -1,3 +1,4 @@
+import {airborneSpeed} from './AirborneEnergy.ts';
 import { Euler, Quaternion, Vector3 } from 'three';
 import {touchdownProblems} from './LandingEnvelope.ts';
 import {hullWaterContact} from './WaterContact.ts';
@@ -44,6 +45,11 @@ export class FlightController {
     this.setOrientation(); this.previousPosition.copy(this.position); this.previousOrientation.copy(this.orientation);
     this.state = airborne ? 'AIRBORNE' : 'ON_WATER';
   }
+  recoverAt(position:Vector3,heading:number){
+    this.reset(true);this.position.copy(position);this.heading=heading;
+    this.velocity.set(-Math.sin(heading)*this.tuning.initialSpeed,0,-Math.cos(heading)*this.tuning.initialSpeed);
+    this.setOrientation();this.previousPosition.copy(this.position);this.previousOrientation.copy(this.orientation);
+  }
   private setOrientation() { this.orientation.setFromEuler(this.euler.set(this.pitch+this.waterPitch, this.heading, this.bank+this.waterBank, 'YXZ')); }
   moorAt(x:number,z:number,heading:number){this.clearManeuver();this.waterImpact=0;this.position.set(x,this.tuning.hullOffset,z);this.heading=heading;this.bank=this.pitch=this.waterPitch=this.waterBank=0;this.velocity.set(0,0,0);this.throttle=0;this.rolling=false;this.state='ON_WATER';this.position.y+=this.sampleWater().height;this.setOrientation();this.previousPosition.copy(this.position);this.previousOrientation.copy(this.orientation);}
   crash(reason: string) { if (this.state === 'CRASHED') return; this.clearManeuver();this.state = 'CRASHED'; this.crashReason = reason; this.velocity.set(0, 0, 0); this.throttle = 0; this.rolling = false; }
@@ -54,7 +60,7 @@ export class FlightController {
       this.maneuverAngle=Math.min(total,this.maneuverAngle+.85*dt);const t=Math.min(1,this.maneuverAngle/.35),entry=1-t*t*(3-2*t);this.pitch=this.maneuverAngle+this.maneuverEntryPitch*entry;this.bank=this.maneuverEntryBank*entry;
     }else if(id==='immelmann'){this.maneuverRoll=Math.min(Math.PI,this.maneuverRoll+1.65*dt);this.bank=this.maneuverRoll;}
     this.setOrientation();this.forward.set(0,0,-1).applyQuaternion(this.orientation);
-    const speed=Math.max(0,this.airspeed+(this.throttle*C.thrust-C.linearDrag*this.airspeed-C.drag*this.airspeed**2-C.gravity*this.forward.y)*dt);
+    const speed=Math.max(0,this.airspeed+(airborneSpeed(C,this.airspeed,this.airspeed*this.forward.y,0,this.throttle).acceleration)*dt);
     this.velocity.copy(this.forward).multiplyScalar(Math.min(C.maxSpeed,speed));
     // Trapezoidal integration follows the arc; no teleport or extra invulnerability.
     this.position.addScaledVector(before,dt*.5).addScaledVector(this.velocity,dt*.5);
@@ -108,15 +114,19 @@ export class FlightController {
       return;
     }
     const liftFraction = Math.min(1, (speed / C.liftSpeed) ** 2);
-    this.acceleration.copy(this.forward).multiplyScalar(this.throttle * C.thrust);
-    this.acceleration.addScaledVector(this.velocity, -(C.linearDrag + C.drag * speed));
-    this.acceleration.addScaledVector(this.up, C.gravity * liftFraction); this.acceleration.y -= C.gravity;
-    this.acceleration.y += this.pitch * speed * 0.9 - this.velocity.y * 0.62;
-    this.velocity.addScaledVector(this.acceleration, dt);
-    const horizontalSpeed = Math.hypot(this.velocity.x, this.velocity.z), steering = 1 - Math.exp(-1.4 * authority * dt);
-    this.velocity.x += (-Math.sin(this.heading) * horizontalSpeed - this.velocity.x) * steering;
-    this.velocity.z += (-Math.cos(this.heading) * horizontalSpeed - this.velocity.z) * steering;
-    this.velocity.clampLength(0, C.maxSpeed); this.velocity.y = Math.max(-30, Math.min(30, this.velocity.y));
+    const oldVertical=this.velocity.y;
+    // Keep the accessible pitch response, but pay for altitude with kinetic energy.
+    const verticalAcceleration=this.throttle*C.thrust*this.forward.y+C.gravity*(this.up.y*liftFraction-1)+this.pitch*speed*.65-this.velocity.y*.62;
+    const vertical=Math.max(-30,Math.min(30,oldVertical+verticalAcceleration*dt));
+    const alignment=speed>1?this.forward.dot(this.velocity)/speed:1;
+    const energy=airborneSpeed(C,speed,(oldVertical+vertical)*.5,this.bank,this.throttle,alignment);
+    const nextSpeed=Math.max(Math.abs(vertical),Math.min(C.maxSpeed,speed+energy.acceleration*dt));
+    const nextVertical=Math.max(-nextSpeed*.85,Math.min(nextSpeed*.85,vertical));
+    const horizontalSpeed=Math.sqrt(Math.max(0,nextSpeed*nextSpeed-nextVertical*nextVertical));
+    const steering=1-Math.exp(-1.4*authority*dt);
+    this.acceleration.set(this.velocity.x,0,this.velocity.z);if(this.acceleration.lengthSq()<.0001)this.acceleration.set(-Math.sin(this.heading),0,-Math.cos(this.heading));this.acceleration.normalize();
+    this.acceleration.lerp(this.forward.set(-Math.sin(this.heading),0,-Math.cos(this.heading)),steering).normalize();
+    this.velocity.set(this.acceleration.x*horizontalSpeed,nextVertical,this.acceleration.z*horizontalSpeed);
     this.position.addScaledVector(this.velocity, dt);
     const lowest = this.position.y - C.hullOffset - Math.abs(Math.sin(this.bank)) * C.floatHalfSpan;
     if (lowest <= water.height) {

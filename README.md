@@ -1,4 +1,4 @@
-# 亚德里亚之鹰
+# 亚德里亚海之翼
 
 [中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
 
@@ -6,15 +6,16 @@
 
 [在线体验](https://eagle-of-the-adriatic-playtest.zola.chatgpt.site) · [三语介绍](https://eagle-of-the-adriatic-playtest.zola.chatgpt.site/about.html?lang=zh)
 
-体验站当前仅所有者可访问，需登录对应 ChatGPT 账号。本地运行无需账号。
+公开试玩，无需注册或登录任何账号。
+
 
 ## 游戏特色
 
-- 六座岛屿、海岸小镇、灯塔、隐秘海湾和停泊栈桥。
+- 六座主岛与三处岛礁、海岸小镇、灯塔、隐秘海湾和停泊栈桥。
 - 红翼一号、M5、Macchi MC.72，三种飞行风格。
-- 环岛挑战、岛屿委托、空中特技与摄影。
-- Supermarine S.6、Gloster VI、Macchi M.67 专属比赛机库，三圈计时赛及完赛烟花。
-- 晨午昏夜、五种天气、体积云与动态海浪。
+- 全岛游览挑战、岛屿委托、空中特技与摄影。
+- Supermarine S.6、Gloster VI、Macchi M.67 专属比赛机库，三机同时起跑的点到点竞速及完赛烟花。
+- 24分钟昼夜周期、四种天气、体积云与动态海浪。
 
 ## 本地运行
 

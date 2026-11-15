@@ -6,15 +6,16 @@ A single-player seaplane adventure across sunlit, Adriatic-inspired islands.
 
 [Play online](https://eagle-of-the-adriatic-playtest.zola.chatgpt.site) · [Introduction](https://eagle-of-the-adriatic-playtest.zola.chatgpt.site/about.html?lang=en)
 
-The hosted demo is owner-only and requires the owner's ChatGPT account. Local play needs no account.
+Public demo — no registration or sign-in required.
+
 
 ## Experience
 
-- Six islands, coastal towns, a lighthouse, a hidden cove, and mooring jetties.
+- Six main islands and three reefs, coastal towns, a lighthouse, a hidden cove, and mooring jetties.
 - Red Wing One, M5, and Macchi MC.72, each with a distinct flying style.
-- Waypoint challenges, island commissions, aerobatics, and photography.
-- Supermarine S.6, Gloster VI, and Macchi M.67 in a dedicated racing hangar; three-lap time trials and fireworks.
-- A day/night cycle, five weather conditions, volumetric clouds, and moving waves.
+- A tour of every island, island commissions, aerobatics, and photography.
+- Supermarine S.6, Gloster VI, and Macchi M.67 in a dedicated racing hangar; three-aircraft point-to-point racing and fireworks.
+- A 20-minute day/night cycle, four weather conditions, volumetric clouds, and moving waves.
 
 ## Run locally
 

@@ -1,16 +1,16 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {waterfrontPoint} from './IslandDetails.ts';
-import {terrainHeight} from './WorldConfig.ts';
+import {churchSite} from './ChurchSite.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 /** Original limestone parish church, built in metres and merged into two opaque draws. */
 export class Church{
  readonly root=new T.Group();private windows:T.MeshStandardMaterial;private glass:T.Mesh;
  constructor(d:IslandDefinition,blockers:T.Box3[]){
-  const shore=waterfrontPoint(d,-.70,108),x=shore.x,z=shore.z,y=terrainHeight(d,x,z)+.3;this.root.position.set(x,y,z);this.root.rotation.y=Math.atan2(-shore.nx,-shore.nz);this.root.name=`${d.id} / parish church`;
+  const shore=churchSite(d),x=shore.x,z=shore.z,y=shore.y;this.root.position.set(x,y,z);this.root.rotation.y=Math.atan2(-shore.nx,-shore.nz);this.root.name=`${d.id} / parish church`;
   const parts:T.BufferGeometry[]=[],windowParts:T.BufferGeometry[]=[];
   const add=(g:T.BufferGeometry,c:number,p:T.Vector3,r=new T.Euler(),glass=false)=>{g.applyMatrix4(new T.Matrix4().compose(p,new T.Quaternion().setFromEuler(r),new T.Vector3(1,1,1)));g.deleteAttribute('uv');const color=new T.Color(c),a=new Float32Array(g.attributes.position.count*3);for(let i=0;i<a.length;i+=3)a.set(color.toArray(),i);g.setAttribute('color',new T.BufferAttribute(a,3));const n=g.index?g.toNonIndexed():g;if(n!==g)g.dispose();(glass?windowParts:parts).push(n);};
   const box=(x:number,y:number,z:number,w:number,h:number,l:number,c:number)=>add(new T.BoxGeometry(w,h,l),c,new T.Vector3(x,y,z));
+  const foundation=y-shore.low+1;box(0,-foundation/2,0,40,foundation,38,0xb7a88b);
   const arch=(x:number,y:number,z:number,r:number,h:number,c:number,glass=false)=>{const s=new T.Shape();s.moveTo(-r,0);s.lineTo(r,0);s.lineTo(r,h);s.absarc(0,h,r,0,Math.PI,false);s.lineTo(-r,0);const g=new T.ExtrudeGeometry(s,{depth:glass?.12:.25,bevelEnabled:false,curveSegments:14});add(g,c,new T.Vector3(x,y,z),new T.Euler(),glass);};
   box(0,.2,0,24,.8,37,0xb7a88b);box(0,6,-1,19,12,31,d.id==='town'?0xcbb99a:0xdbcfb2);
   // The gable is a solid prism; side buttresses and cornices catch the moving sun.

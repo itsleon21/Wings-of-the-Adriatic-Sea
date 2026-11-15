@@ -1,99 +1,103 @@
 import * as T from 'three';
-import {cloudCells} from './CloudLayout.ts';
-import {random} from '../world/WorldConfig.ts';
-/** Three-dimensional density, integrated through irregular ellipsoidal cloud bounds.
- * Clouds have real altitude and thickness. Turning or flying above them changes their silhouette. */
-export class CloudVolumes {
- readonly mesh:T.InstancedMesh;
- private texture:T.Data3DTexture;private time={value:0};private coverage={value:.38};private rain={value:0};private sun={value:3.1};private visibility={value:16000};
- constructor(scene:T.Scene){
-  const size=48,rng=random(808),data=new Uint8Array(size**3),features=Array.from({length:8**3},()=>[rng(),rng(),rng()]);
-  const feature=(x:number,y:number,z:number)=>features[((z+8)%8)*64+((y+8)%8)*8+(x+8)%8];
-  for(let z=0;z<size;z++)for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-   const px=x/6,py=y/6,pz=z/6,bx=Math.floor(px),by=Math.floor(py),bz=Math.floor(pz);let nearest=4;
-   for(let k=-1;k<=1;k++)for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const f=feature(bx+i,by+j,bz+k),dx=bx+i+f[0]-px,dy=by+j+f[1]-py,dz=bz+k+f[2]-pz;nearest=Math.min(nearest,dx*dx+dy*dy+dz*dz);}
-   data[z*size*size+y*size+x]=Math.round(Math.max(0,Math.min(1,1-Math.sqrt(nearest)*.77))*255);
+import {createCloudLayout,cloudImmersionAt} from './CloudLayout.ts';
+import {cloudShapes,createCloudField} from './CloudShapes.ts';
+import {cloudPalette} from './CloudLighting.ts';
+import type {DaylightValues} from './TimeOfDay.ts';
+import type {WeatherId} from './WeatherConfig.ts';
+const atlasSize=40,atlasKinds=cloudShapes.length*2;
+let atlasData:Uint8Array|undefined;
+/** Bake twelve eroded density fields once; one filtered 3D lookup replaces per-step shape/noise stacks. */
+function densityAtlas(){
+ if(atlasData)return atlasData;
+ const data=new Uint8Array(atlasSize**3*atlasKinds);
+ for(let kind=0;kind<atlasKinds;kind++){
+  const field=createCloudField(cloudShapes[Math.floor(kind/2)],57+(kind%2)*83);
+  for(let z=0;z<atlasSize;z++)for(let y=0;y<atlasSize;y++)for(let x=0;x<atlasSize;x++){
+   const px=(x/(atlasSize-1)*2-1)*1.8,py=(y/(atlasSize-1)*2-1)*1.5+.4,pz=(z/(atlasSize-1)*2-1)*1.3;
+   const erosion=Math.sin(px*9+kind)*Math.sin(py*11+pz*4)*Math.sin(pz*10-px*3)*.032;
+   const d=T.MathUtils.smoothstep(.065-field(px,py,pz)+erosion,0,.19);
+   data[((kind*atlasSize+z)*atlasSize+y)*atlasSize+x]=Math.round(d*255);
   }
-  this.texture=new T.Data3DTexture(data,size,size,size);this.texture.format=T.RedFormat;this.texture.minFilter=this.texture.magFilter=T.LinearFilter;this.texture.wrapS=this.texture.wrapT=this.texture.wrapR=T.RepeatWrapping;this.texture.unpackAlignment=1;this.texture.needsUpdate=true;
-  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,side:T.BackSide,uniforms:{cloudCount:{value:cloudCells.length},viewSteps:{value:40},sceneDepth:{value:null},cloudResolution:{value:new T.Vector2(1,1)},cameraFar:{value:26000},useSceneDepth:{value:0},densityMap:{value:this.texture},cloudTime:this.time,coverage:this.coverage,rain:this.rain,sunPower:this.sun,visibility:this.visibility,probeNeutralness:{value:0},dayGain:{value:1},lightTint:{value:new T.Color(1,.91,.76)},sunDirection:{value:new T.Vector3(-.52,.64,.56).normalize()}},
-   vertexShader:`#include <common>
-#include <logdepthbuf_pars_vertex>
-attribute float cloudIndex;attribute float cloudLayer;varying float vLayer;varying vec3 vLocal;varying vec3 vEye;varying vec3 vSize;varying vec3 vSeed;varying float vIndex;
-void main(){vec3 center=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;vSize=vec3(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz),length(instanceMatrix[2].xyz));vEye=(cameraPosition-center)/vSize;vLocal=position;vSeed=center*.00017;vIndex=cloudIndex;vLayer=cloudLayer;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
-#include <logdepthbuf_vertex>
-}`,
-   fragmentShader:`precision highp sampler3D;
-#include <common>
-#include <logdepthbuf_pars_fragment>
-uniform float cloudCount;uniform float viewSteps;uniform sampler2D sceneDepth;uniform vec2 cloudResolution;uniform float cameraFar;uniform float useSceneDepth;uniform sampler3D densityMap;uniform float cloudTime;uniform float coverage;uniform float rain;uniform float sunPower;uniform float visibility;uniform vec3 sunDirection;uniform float dayGain;uniform vec3 lightTint;uniform float probeNeutralness;
-varying vec3 vLocal;varying vec3 vEye;varying vec3 vSize;varying vec3 vSeed;varying float vIndex;varying float vLayer;
-float density(vec3 p){
- // Domain-warped 3D lobes stay stable in world space: no screen-space noise or temporal dithering.
- vec3 warp=vec3(texture(densityMap,p*.43+vSeed).r,texture(densityMap,p*.43+vSeed+3.7).r,texture(densityMap,p*.43+vSeed+7.1).r)-.5;
- vec3 q=p+warp*.24;
- float drift=cloudTime*.0006;
- float n=texture(densityMap,q*.72+vSeed+vec3(drift,0.,0.)).r;
- float detail=texture(densityMap,q*2.8+vSeed*2.).r;
- float fine=texture(densityMap,q*6.4+vSeed*3.).r;
- if(vLayer>1.5){
-  float sheet=1.-length(q*vec3(.97,1.10,.96));
-  float streak=texture(densityMap,q*vec3(.52,1.6,4.3)+vSeed).r;
-  return max(0.,sheet-(1.-n)*.52-(1.-streak)*.30)*.28;
  }
- float base=1.10-length((q-vec3(0.,-.08,0.))*vec3(.99,1.35,1.02));
- float tower=.79-length((q-vec3(-.27,.18,.02))*vec3(1.3,1.08,1.4));
- float shoulder=.66-length((q-vec3(.38,-.05,.08))*vec3(1.2,1.5,1.3));
- float crown=.53-length((q-vec3(.03,.45,-.11))*vec3(1.25,1.35,1.4));
- float shape=max(max(base,crown),max(tower,shoulder));
- float body=shape-(1.-n)*.27-(1.-detail)*.14-(1.-fine)*.06;return smoothstep(.015,.26,body)*smoothstep(-.76,-.46,p.y);
+ atlasData=data;return data;
 }
-// Sun visibility uses a coarser density mip approximation; view rays retain fine 3D erosion.
-float shadowDensity(vec3 p){
- if(any(greaterThan(abs(p),vec3(1.05))))return 0.;
- float base=1.10-length((p-vec3(0.,-.08,0.))*vec3(.99,1.35,1.02));
- float tower=.79-length((p-vec3(-.27,.18,.02))*vec3(1.3,1.08,1.4));
- float shoulder=.66-length((p-vec3(.38,-.05,.08))*vec3(1.2,1.5,1.3));
- float crown=.53-length((p-vec3(.03,.45,-.11))*vec3(1.25,1.35,1.4));
- float n=texture(densityMap,p*.72+vSeed+vec3(cloudTime*.0006,0.,0.)).r;
- float fine=texture(densityMap,p*1.6+vSeed*2.).r;
- return smoothstep(.015,.26,max(max(base,crown),max(tower,shoulder))-(1.-n)*.32-(1.-fine)*.12)*smoothstep(-.76,-.46,p.y)*(vLayer>1.5?.22:1.);
+/** Depth-clipped, front-to-back ray integration inside independently positioned 3D clouds. */
+export class CloudVolumes{
+ readonly mesh:T.InstancedMesh;layout:ReturnType<typeof createCloudLayout>=[];
+ private texture:T.Data3DTexture;private elapsed=0;private weather?:WeatherId;private reveal=1;private seed:number;
+ private dummy=new T.Object3D();private frustum=new T.Frustum();private viewMatrix=new T.Matrix4();private bound=new T.Sphere();
+ constructor(scene:T.Scene,seed=Math.floor(Math.random()*1000000)){
+  this.seed=seed;this.texture=new T.Data3DTexture(densityAtlas(),atlasSize,atlasSize,atlasSize*atlasKinds);this.texture.format=T.RedFormat;this.texture.minFilter=this.texture.magFilter=T.LinearFilter;this.texture.unpackAlignment=1;this.texture.needsUpdate=true;
+  const material=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,side:T.BackSide,toneMapped:false,uniforms:{densityMap:{value:this.texture},viewSteps:{value:24},cloudResolution:{value:new T.Vector2(1,1)},sceneDepth:{value:null},cameraFar:{value:26000},useSceneDepth:{value:0},sunDirection:{value:new T.Vector3(-.52,.64,.56).normalize()},lightTint:{value:new T.Color(1,.91,.76)},dayGain:{value:1},sunStrength:{value:1},ambientHigh:{value:new T.Color(.84,.87,.89)},ambientLow:{value:new T.Color(.30,.37,.49)},aerialTint:{value:new T.Color(.39,.54,.69)},rain:{value:0},visibility:{value:16000},probeNeutralness:{value:0},reveal:{value:1}},
+  vertexShader:`varying vec3 vEye;varying vec3 vLocal;varying vec3 vSize;varying vec2 vTurn;varying float vKind;
+attribute float cloudKind;attribute vec2 cloudTurn;
+void main(){vec3 center=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;vSize=vec3(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz),length(instanceMatrix[2].xyz));vTurn=cloudTurn;vec3 eye=cameraPosition-center;vEye=vec3(eye.x*vTurn.x+eye.z*vTurn.y,eye.y,-eye.x*vTurn.y+eye.z*vTurn.x)/vSize;vLocal=position;vKind=cloudKind;gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);}`,
+  fragmentShader:`precision highp sampler3D;
+uniform sampler3D densityMap;uniform sampler2D sceneDepth;uniform float viewSteps;uniform vec2 cloudResolution;uniform float cameraFar;uniform float useSceneDepth;uniform vec3 sunDirection;uniform vec3 lightTint;uniform vec3 ambientHigh;uniform vec3 ambientLow;uniform vec3 aerialTint;uniform float dayGain;uniform float sunStrength;uniform float rain;uniform float visibility;uniform float probeNeutralness;uniform float reveal;
+varying vec3 vEye;varying vec3 vLocal;varying vec3 vSize;varying vec2 vTurn;varying float vKind;
+vec3 toWorld(vec3 p){return vec3(p.x*vTurn.x-p.z*vTurn.y,p.y,p.x*vTurn.y+p.z*vTurn.x);}
+float density(vec3 p){
+ if(any(greaterThan(abs(p),vec3(1.))))return 0.;
+ vec3 uv=(p*.5+.5)*${(atlasSize-1)/atlasSize}+.5/${atlasSize}.;
+ uv.z=(vKind+uv.z)/${atlasKinds}.;
+ // Wispy lower skirt becomes denser upwards, leaving sea and low coasts readable.
+ return textureLod(densityMap,uv,0.).r*reveal*mix(.32,1.,smoothstep(-.80,.38,p.y));
 }
 void main(){
- float activation=clamp(coverage*cloudCount-vIndex,0.,1.);if(activation<.005)discard;
- vec3 rd=normalize(vLocal-vEye),safeRay=sign(rd)*max(abs(rd),vec3(.00001));vec3 a=(-vec3(1.)-vEye)/safeRay,b=(vec3(1.)-vEye)/safeRay;
- vec3 lo=min(a,b),hi=max(a,b);float entry=max(0.,max(lo.x,max(lo.y,lo.z))),exit=min(hi.x,min(hi.y,hi.z));if(exit<=entry)discard;
- float sceneDistance=exp2(texture2D(sceneDepth,gl_FragCoord.xy/cloudResolution).r*log2(cameraFar+1.))-1.;
- float stepSize=(exit-entry)/viewSteps;vec3 sunLocal=normalize(sunDirection/vSize);vec3 worldRay=normalize(rd*vSize);float mu=dot(worldRay,sunDirection);float forward=(1.-.62*.62)/pow(max(.05,1.+.62*.62-2.*.62*mu),1.5)*.32;
- vec3 sum=vec3(0.);float transmittance=1.;
- for(int i=0;i<40;i++){if(float(i)>=viewSteps)break;
-  vec3 p=vEye+rd*(entry+(float(i)+.5)*stepSize);if(useSceneDepth>.5&&-(viewMatrix*vec4(cameraPosition+(p-vEye)*vSize,1.)).z>sceneDistance)break;float d=density(p)*activation;
-  if(d>.005){float optical=0.;for(int j=1;j<=5;j++)optical+=shadowDensity(p+sunLocal*float(j)*.17)*.65;
-   float sunlight=exp(-optical*1.55);float altitude=smoothstep(-.7,.6,p.y);
-   vec3 ambient=mix(vec3(.28,.34,.42),vec3(.78,.86,.96),altitude)*mix(1.,.62,rain);
-   float powder=1.-exp(-d*5.);
-   vec3 light=ambient*(.045+.955*dayGain)+lightTint*(sunlight*(.48+.52*powder)*sunPower*.90+forward*pow(sunlight,.55)*.75)*dayGain;
-   light+=lightTint*(1.-sunlight)*.12*dayGain;
-   light=mix(light,vec3(dot(light,vec3(.2126,.7152,.0722))),probeNeutralness*.94);float worldStep=length(rd*vSize)*stepSize;float opacity=1.-exp(-d*worldStep*mix(.0055,.009,rain));sum+=transmittance*opacity*light;transmittance*=1.-opacity;
-   if(transmittance<.025)break;
-  }
+ vec3 rd=normalize(vLocal-vEye),safeRay=mix(vec3(-1.),vec3(1.),step(vec3(0.),rd))*max(abs(rd),vec3(.00001));
+ vec3 a=(-1.-vEye)/safeRay,b=(1.-vEye)/safeRay,lo=min(a,b),hi=max(a,b);
+ float entry=max(0.,max(lo.x,max(lo.y,lo.z))),exit=min(hi.x,min(hi.y,hi.z));if(exit<=entry)discard;
+ float distanceToCloud=length(toWorld(rd*vSize))*entry;
+ if(distanceToCloud>visibility*1.25)discard;
+ float sceneDistance=useSceneDepth>.5?exp2(texture2D(sceneDepth,gl_FragCoord.xy/cloudResolution).r*log2(cameraFar+1.))-1.:1.e8;
+ // Clip the complete integration interval before sampling: geometry no longer removes whole depth slices.
+ float viewDepthPerUnit=-(viewMatrix*vec4(toWorld(rd*vSize),0.)).z;
+ if(useSceneDepth>.5&&viewDepthPerUnit>.00001)exit=min(exit,sceneDistance/viewDepthPerUnit);
+ if(exit<=entry)discard;
+ float inside=1.-smoothstep(0.,.08,entry);
+ float steps=ceil(mix(mix(viewSteps,20.,smoothstep(6000.,15000.,distanceToCloud)),48.,inside)),stepSize=(exit-entry)/steps;
+ vec3 sunLocal=normalize(vec3(sunDirection.x*vTurn.x+sunDirection.z*vTurn.y,sunDirection.y,-sunDirection.x*vTurn.y+sunDirection.z*vTurn.x)/vSize);
+ vec3 worldRay=normalize(toWorld(rd*vSize));float mu=dot(worldRay,sunDirection),forward=.12/(pow(max(.08,1.36-1.2*mu),1.5));
+ float sunsetEdge=(1.-smoothstep(.08,.45,sunDirection.y))*smoothstep(.65,.99,mu)*(1.-rain);
+ float trans=1.,worldStep=length(rd*vSize)*stepSize,previousDensity=density(vEye+rd*entry);vec3 sum=vec3(0.);
+ for(int i=0;i<64;i++){
+  if(float(i)>=steps||trans<.02)break;
+  vec3 p=vEye+rd*(entry+(float(i)+.5)*stepSize);
+  float nextDensity=density(vEye+rd*(entry+(float(i)+1.)*stepSize));
+  float d=(previousDensity+nextDensity)*.5;previousDensity=nextDensity;if(d<.004)continue;
+  float shade=density(p+sunLocal*.23)*.75+density(p+sunLocal*.53)*.6;
+  float sunlight=exp(-shade*1.8),altitude=smoothstep(-.6,.7,p.y);
+  vec3 ambient=mix(ambientLow,ambientHigh,altitude)*mix(1.,.66,rain);
+  float powder=1.-exp(-d*3.5),rim=pow(max(mu,0.),8.)*sunlight*(1.-d*.7);
+  vec3 light=ambient*(.06+.94*dayGain)+lightTint*dayGain*sunStrength*(sunlight*(.40+.60*powder)*1.5+forward*sunlight*(.55+.28*sunsetEdge)+rim*(.42+.78*sunsetEdge*(1.-smoothstep(.12,.65,d))));
+  light=mix(light,vec3(dot(light,vec3(.2126,.7152,.0722))),probeNeutralness*.94);
+  float opacity=1.-exp(-d*worldStep*mix(.0048,.0075,rain));sum+=trans*opacity*light;trans*=1.-opacity;
  }
- float layerVisibility=min(26000.,visibility*(vLayer>1.5?1.45:1.));float alpha=(1.-transmittance)*(1.-smoothstep(layerVisibility*.5,layerVisibility,length((vEye-vLocal)*vSize)));if(alpha<.008)discard;
- vec3 radiance=sum/max(.001,1.-transmittance);float aerial=1.-exp(-length((vEye-vLocal)*vSize)/26000.);radiance=mix(radiance,vec3(.40,.58,.82)*(.03+.97*dayGain),aerial*.38);gl_FragColor=vec4(radiance,alpha);
-#include <logdepthbuf_fragment>
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
+ float alpha=1.-trans;if(alpha<.001)discard;
+ vec3 radiance=sum/max(.001,alpha);float aerial=1.-exp(-distanceToCloud/23000.);
+ radiance=mix(radiance,aerialTint*(.06+.94*dayGain),aerial*.32);
+ alpha*=1.-smoothstep(visibility*.65,visibility*1.25,distanceToCloud);
+ gl_FragColor=vec4(radiance,alpha);
 }`});
-  this.mesh=new T.InstancedMesh(new T.BoxGeometry(2,2,2),material,cloudCells.length);const dummy=new T.Object3D(),indices=[],layers=[];
-  for(let i=0;i<cloudCells.length;i++){
-   const c=cloudCells[i];dummy.position.set(c.x,c.y,c.z);dummy.scale.set(c.rx,c.ry,c.rz);dummy.updateMatrix();this.mesh.setMatrixAt(i,dummy.matrix);indices.push(i);layers.push(c.layer);
-  }
-  this.mesh.geometry.setAttribute('cloudLayer',new T.InstancedBufferAttribute(new Float32Array(layers),1));
-  this.mesh.geometry.setAttribute('cloudIndex',new T.InstancedBufferAttribute(new Float32Array(indices),1));this.mesh.frustumCulled=false;this.mesh.name='Weather / volumetric cumulus — low cumulus, middle towers and high wind banks';scene.add(this.mesh);
+  const geometry=new T.BoxGeometry(2,2,2);geometry.setAttribute('cloudKind',new T.InstancedBufferAttribute(new Float32Array(80),1));geometry.setAttribute('cloudTurn',new T.InstancedBufferAttribute(new Float32Array(160),2));
+  this.mesh=new T.InstancedMesh(geometry,material,80);this.mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);this.mesh.frustumCulled=false;this.mesh.name='Weather / layered volumetric maritime clouds';scene.add(this.mesh);this.setWeather('sunny',true);this.writeInstances(this.layout);
  }
- setDetail(scale:number){(this.mesh.material as T.ShaderMaterial).uniforms.viewSteps.value=scale>=.45?40:scale>=.27?28:20;}
+ setWeather(weather:WeatherId,immediate=false){if(weather===this.weather)return;this.reveal=this.weather===undefined||immediate?1:0;this.weather=weather;this.layout=createCloudLayout(this.seed,weather);}
+ private writeInstances(cells:ReturnType<typeof createCloudLayout>){
+  const kinds=this.mesh.geometry.getAttribute('cloudKind') as T.InstancedBufferAttribute,turns=this.mesh.geometry.getAttribute('cloudTurn') as T.InstancedBufferAttribute;
+  cells.forEach((c,i)=>{this.dummy.position.set(c.x,c.y+c.height*.4,c.z);this.dummy.scale.set(c.width*1.8,c.height*1.5,c.depth*1.3);this.dummy.rotation.set(0,-c.rotation,0);this.dummy.updateMatrix();this.mesh.setMatrixAt(i,this.dummy.matrix);kinds.setX(i,cloudShapes.indexOf(c.shape)*2+c.variant);turns.setXY(i,Math.cos(c.rotation),Math.sin(c.rotation));});
+  this.mesh.count=cells.length;this.mesh.instanceMatrix.needsUpdate=true;kinds.needsUpdate=turns.needsUpdate=true;
+ }
+ setView(camera:T.Camera){
+  camera.updateMatrixWorld();this.viewMatrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);this.frustum.setFromProjectionMatrix(this.viewMatrix);
+  const visible=this.layout.filter(c=>{this.bound.center.set(c.x+this.mesh.position.x,c.y+c.height*.4,c.z+this.mesh.position.z);this.bound.radius=Math.hypot(c.width*1.8,c.height*1.5,c.depth*1.3);return this.frustum.intersectsSphere(this.bound);});
+  visible.sort((a,b)=>(b.x+this.mesh.position.x-camera.position.x)**2+(b.y-camera.position.y)**2+(b.z+this.mesh.position.z-camera.position.z)**2-((a.x+this.mesh.position.x-camera.position.x)**2+(a.y-camera.position.y)**2+(a.z+this.mesh.position.z-camera.position.z)**2));this.writeInstances(visible);
+ }
+ update(dt:number,rain:number,wind:number,weather:WeatherId='cloudy',visibility=16000){this.setWeather(weather,dt===0);this.elapsed+=dt*(.3+wind);this.reveal=Math.min(1,this.reveal+dt/2);const u=(this.mesh.material as T.ShaderMaterial).uniforms;u.rain.value=rain;u.visibility.value=visibility;u.reveal.value=T.MathUtils.smoothstep(this.reveal,0,1);this.mesh.position.set(Math.sin(this.elapsed*.0003)*300,0,Math.sin(this.elapsed*.0002)*180);this.writeInstances(this.layout);}
+ immersion(point:T.Vector3){return cloudImmersionAt(point,this.layout,this.mesh.position)*this.reveal;}
+ setDetail(scale:number){(this.mesh.material as T.ShaderMaterial).uniforms.viewSteps.value=scale>=.42?40:scale>=.25?32:24;}
  setProbeNeutralness(value:number){(this.mesh.material as T.ShaderMaterial).uniforms.probeNeutralness.value=value;}
- setLighting(direction:T.Vector3,color:T.Color,day:number){const u=(this.mesh.material as T.ShaderMaterial).uniforms;u.sunDirection.value.copy(direction);u.lightTint.value.copy(color);u.dayGain.value=day;}
+ setLighting(direction:T.Vector3,color:T.Color,day:number,sunStrength=1,clock?:Pick<DaylightValues,'day'|'warm'|'sunset'>){const u=(this.mesh.material as T.ShaderMaterial).uniforms;u.sunDirection.value.copy(direction);u.lightTint.value.copy(color);u.dayGain.value=day;u.sunStrength.value=sunStrength;const palette=cloudPalette(clock??{day,warm:0,sunset:0});u.ambientHigh.value.fromArray(palette.top);u.ambientLow.value.fromArray(palette.bottom);u.aerialTint.value.fromArray(palette.aerial);}
  setSceneDepth(texture:T.DepthTexture|null,width:number,height:number,far:number){const u=(this.mesh.material as T.ShaderMaterial).uniforms;u.sceneDepth.value=texture;u.cloudResolution.value.set(width,height);u.cameraFar.value=far;u.useSceneDepth.value=texture?1:0;}
- update(dt:number,rain:number,wind:number,coverage:number,visibility:number){this.time.value+=dt*(.3+wind);this.rain.value=rain;this.coverage.value=coverage;this.sun.value=3.1*(1-rain*.9)*(1-Math.max(0,coverage-.55)*1.65);this.visibility.value=visibility;this.mesh.position.x=Math.sin(this.time.value*.0003)*350;this.mesh.position.z=Math.sin(this.time.value*.0002)*210;}
  dispose(){this.mesh.removeFromParent();this.mesh.geometry.dispose();(this.mesh.material as T.Material).dispose();this.texture.dispose();}
 }

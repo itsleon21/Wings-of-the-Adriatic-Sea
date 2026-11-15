@@ -1,9 +1,11 @@
+import {coastalLandmarkOccupied} from './CoastalLandmarkSites.ts';
+import {churchSite} from './ChurchSite.ts';
 import {contourRoad} from './ContourRoad.ts';
 import {terrainHeight,random} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {waterfrontPoint,inTakeoffChannel} from './IslandDetails.ts';
 
-export const houseKinds=['HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace'] as const;
+export const houseKinds=['HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace','HouseLoggia','HousePalazzo','HouseBoatyard','HouseMill','HouseMillTall','HouseMillSquare','HouseGranary','HouseMarketHall'] as const;
 export type HouseKind=typeof houseKinds[number];
 export type District='waterfront'|'village'|'hillside';
 export interface HousePlot {kind:HouseKind;district:District;x:number;z:number;ground:number;low:number;width:number;depth:number;height:number;angle:number;tint:number[]}
@@ -11,7 +13,7 @@ export interface VillageRoad {points:{x:number;z:number}[];width:number}
 export interface VillagePlaza {x:number;z:number;radius:number;market?:boolean}
 export interface SettlementLayout {houses:HousePlot[];roads:VillageRoad[];plazas:VillagePlaza[]}
 const clamp=(x:number,a:number,b:number)=>Math.min(b,Math.max(a,x));
-const dimensions:Record<HouseKind,[number,number,number]>={HouseFisher:[12,8,11],HouseTownhouse:[12,15,14],HouseArcade:[19,12,15],HouseVilla:[19,10,17],HouseWorkshop:[23,8,15],HouseTerrace:[19,11,17]};
+const dimensions:Record<HouseKind,[number,number,number]>={HouseFisher:[12,8,11],HouseTownhouse:[12,15,14],HouseArcade:[19,12,15],HouseVilla:[19,10,17],HouseWorkshop:[23,8,15],HouseTerrace:[19,11,17],HouseLoggia:[25,10,14],HousePalazzo:[18,20,17],HouseBoatyard:[29,10,19],HouseMill:[16,15,14],HouseMillTall:[16,17,14],HouseMillSquare:[17,14,15],HouseGranary:[25,11,17],HouseMarketHall:[24,10,16]};
 export function plotCorners(p:HousePlot,padding=0){const w=p.width*.66+padding,d=p.depth*.66+padding,c=Math.cos(p.angle),s=Math.sin(p.angle);return[[-w,-d],[w,-d],[w,d],[-w,d]].map(([x,z])=>({x:p.x+x*c+z*s,z:p.z-x*s+z*c}));}
 /** Exact separating axes keep rotated roofs and balconies out of neighbouring plots. */
 export function plotsOverlap(a:HousePlot,b:HousePlot,padding=0){
@@ -44,6 +46,7 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
  const rng=random(d.seed+410),houses:HousePlot[]=[],roads:VillageRoad[]=[],plazas:VillagePlaza[]=[];
  if(d.id!=='harbor'&&d.id!=='town')return{houses,roads,plazas};
  const town=d.id==='town';
+ const realChurch=churchSite(town&&d.canonical?{...d,canonical:false}:d),church=town&&d.canonical?{...realChurch,x:2*d.x-realChurch.x,z:2*d.z-realChurch.z,nx:-realChurch.nx,nz:-realChurch.nz}:realChurch;
  const shoreRoad:VillageRoad={points:[],width:8};
  for(let i=0;i<=72;i++){const p=waterfrontPoint(d,-Math.PI+.18+i/72*(Math.PI-.36),3);shoreRoad.points.push({x:p.x,z:p.z});}
  roads.push(shoreRoad);
@@ -53,20 +56,24 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
  if(mainRoad.points.length<2)throw new Error(`${d.name}缺少连通的缓坡道路`);
 
  roads.push(mainRoad);
+ const porch={x:church.x-church.nx*43,z:church.z-church.nz*43},churchStart=mainRoad.points.reduce((a,b)=>Math.hypot(b.x-porch.x,b.z-porch.z)<Math.hypot(a.x-porch.x,a.z-porch.z)?b:a),churchRoad=contourRoad(d,churchStart,porch);
+ if(churchRoad.length>1&&churchRoad.every(p=>!coastalLandmarkOccupied(town&&d.canonical?2*d.x-p.x:p.x,town&&d.canonical?2*d.z-p.z:p.z,12))){roads.push({points:churchRoad,width:4.2});plazas.push({...porch,radius:10});}
  const sidePlaza=waterfrontPoint(d,town?-.78:-2.42,16);plazas.push({x:sidePlaza.x,z:sidePlaza.z,radius:12,market:true});
 
- const anchors=town?[[-.36,-.12],[.30,-.11],[-.08,-.41],[.38,-.60],[-.34,-.64],[.53,-.29],[-.54,-.31],[.13,-.48]]:[[-.38,-.08],[.34,-.16],[-.06,-.40],[-.36,-.60],[.29,-.61]];
+ const anchors=town?[[-.32,-.13],[.20,-.17],[-.08,-.41],[.38,-.60],[-.34,-.64],[-.52,-.31]]:[[-.35,-.08],[.30,-.18],[-.06,-.42],[-.36,-.60]];
  for(const [ax,az] of anchors){
   const x=d.x+ax*d.rx,z=d.z+az*d.rz,start=mainRoad.points.reduce((best,p)=>Math.hypot(p.x-x,p.z-z)<Math.hypot(best.x-x,best.z-z)?p:best),branch:VillageRoad={points:[],width:4.2};
   for(let i=0;i<=18;i++){const t=i/18,dx=x-start.x,dz=z-start.z,len=Math.hypot(dx,dz)||1,bend=Math.sin(t*Math.PI)*(town?24*Math.sin(ax*9+az*6):9);branch.points.push({x:start.x+dx*t-(town?dz/len*bend:0),z:start.z+dz*t+(town?dx/len*bend:Math.sin(t*Math.PI)*9)});}roads.push(branch);
-  plazas.push({x,z,radius:8});
+  plazas.push({x,z,radius:town&&ax===-.08?14:8,market:town&&ax===-.08});
  }
  function add(kind:HouseKind,district:District,x:number,z:number,angle:number){
   const [bw,bh,bd]=dimensions[kind],scale=town?.73+rng()*.55:.88+rng()*.26;
   const p:HousePlot={kind,district,x,z,width:bw*scale,height:bh*((town?.74:.88)+rng()*(town?.66:.25)),depth:bd*((town?.80:.9)+rng()*(town?.42:.2)),ground:0,low:0,angle,tint:town?[[1,.88,.68],[.92,.97,.89],[1,.76,.60],[.80,.88,.83],[1,.98,.89],[.92,.82,.75]][Math.floor(rng()*6)]:[.89+rng()*.11,.88+rng()*.11,.86+rng()*.12]};
-  if(district==='waterfront')p.width*=.84;
+  if(district==='waterfront'){p.width*=.94;p.height*=.93+.17*Math.sin(angle*4);}
+  if(district==='village')p.height*=1.10+.14*Math.sin(x*.023+z*.015);
   if(inTakeoffChannel(d,x,z,55))return false;
   const radius=Math.hypot(p.width*.66,p.depth*.66);
+  if(coastalLandmarkOccupied(town&&d.canonical?2*d.x-x:x,town&&d.canonical?2*d.z-z:z,radius+2))return false;
   if(plazas.some(q=>Math.hypot(x-q.x,z-q.z)<q.radius+radius*.72))return false;
   // Sample plot edges as well as its centre: long rotated houses cannot straddle a lane.
   const corners=plotCorners(p,1),samples=[{x,z},...corners,...corners.map((a,i)=>({x:(a.x+corners[(i+1)%4].x)/2,z:(a.z+corners[(i+1)%4].z)/2}))];
@@ -78,7 +85,7 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
   if(district==='hillside'&&houses.some(other=>Math.hypot(x-other.x,z-other.z)<44))return false;
   if(houses.some(other=>plotsOverlap(p,other,district==='hillside'?3:1.1)))return false;
   // Reserve the campanile and harbour warehouse sites already used by the scene.
-  const tower=waterfrontPoint(d,-.70,108);if(Math.hypot(x-tower.x,z-tower.z)<radius+40)return false;
+  if(Math.hypot(x-church.x,z-church.z)<radius+43)return false;
   for(const a of[-2.80,-.34]){const warehouse=waterfrontPoint(d,a,40);if(Math.hypot(x-warehouse.x,z-warehouse.z)<radius+19)return false;}
   houses.push(p);return true;
  }
@@ -86,23 +93,29 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
  const waterfrontClusters=town?[[-2.80,.28],[-2.14,.34],[-1.08,.26],[-.40,.17]]:[[-2.79,.22],[-2.03,.29],[-.97,.26],[-.34,.15]];
  let index=0;
  for(const [center,spread] of waterfrontClusters){
-  for(let i=0;i<(town?64:34);i++){
-   const a=center+(rng()-.5)*spread*2,p=waterfrontPoint(d,a,22+rng()*18),kind:HouseKind=town?houseKinds[[2,1,0,5,4,1,3,0][index%8]]:(a< -2.1?(index%4===0?'HouseWorkshop':'HouseFisher'):(index%4===0?'HouseArcade':index%3===0?'HouseTownhouse':'HouseTerrace'));
+  for(let i=0;i<(town?100:64);i++){
+   const a=center+(rng()-.5)*spread*2,p=waterfrontPoint(d,a,24+rng()*8),kind:HouseKind=town?houseKinds[[2,1,0,6,5,1,7,0][index%8]]:(a< -2.1?(index%4===0?'HouseBoatyard':index%3===0?'HouseWorkshop':'HouseFisher'):(index%4===0?'HouseArcade':index%3===0?'HouseTownhouse':'HouseTerrace'));
    add(kind,'waterfront',p.x,p.z,Math.atan2(-p.nx,-p.nz)+(rng()-.5)*.16);index++;
   }
  }
  // A few second-line pockets read as back lanes, not another continuous ring.
- for(const center of(town?[-2.7,-2.1,-1.55,-.95,-.45]:[-2.75,-2.2,-.65]))for(let i=0;i<(town?64:34);i++){
-  const a=center+(rng()-.5)*.34,p=waterfrontPoint(d,a,66+rng()*54);
-  add(rng()<.40?'HouseFisher':rng()<.55?'HouseTerrace':'HouseTownhouse','village',p.x,p.z,Math.atan2(-p.nx,-p.nz)+(rng()-.5)*.25);
+ for(const center of(town?[-2.7,-2.1,-1.55,-.95,-.45]:[-2.75,-2.2,-.65]))for(let i=0;i<(town?100:64);i++){
+  const a=center+(rng()-.5)*.34,p=waterfrontPoint(d,a,61+rng()*37);
+  add(town&&rng()<.18?'HousePalazzo':rng()<.40?'HouseFisher':rng()<.55?'HouseTerrace':'HouseTownhouse','village',p.x,p.z,Math.atan2(-p.nx,-p.nz)+(rng()-.5)*.25);
+ }
+ // A second irregular neighbourhood occupies the broad middle terrace of the larger town.
+ if(town)for(const center of[-2.38,-1.58,-.92])for(let i=0;i<280;i++){
+  const a=center+(rng()-.5)*.50,p=waterfrontPoint(d,a,148+rng()*75);
+  const kind:HouseKind=houseKinds[[0,1,5,7,3,1,2,4][Math.floor(rng()*8)]];
+  add(kind,'village',p.x,p.z,Math.atan2(-p.nx,-p.nz)+(rng()-.5)*.34);
  }
  // Upper hamlets grow in separate groups around flat terrain pockets. More open land is left at altitude.
 
  for(let k=0;k<anchors.length;k++){
   const [ax,az]=anchors[k],cx=d.x+ax*d.rx,cz=d.z+az*d.rz;
-  for(let i=0;i<(town?400:125);i++){
-   const theta=rng()*Math.PI*2,r=Math.sqrt(rng()),x=cx+Math.cos(theta)*r*(town?75+(k%3)*24:60),z=cz+Math.sin(theta)*r*(town?55+(k%4)*16:48);
-   const district:District=(k<3||k>4)?'village':'hillside',kind:HouseKind=(k<3||k>4)?(town?houseKinds[[1,0,5,3,1,2,4][Math.floor(rng()*7)]]:(rng()<.4?'HouseTerrace':rng()<.4?'HouseTownhouse':'HouseFisher')):(rng()<.65?'HouseVilla':'HouseFisher');
+  for(let i=0;i<(town?520:175);i++){
+   const theta=rng()*Math.PI*2,r=Math.sqrt(rng()),x=cx+Math.cos(theta)*r*(town?62+(k%3)*13:54),z=cz+Math.sin(theta)*r*(town?50+(k%4)*10:43);
+   const district:District=(k<3||k>4)?'village':'hillside',kind:HouseKind=(k<3||k>4)?(town?houseKinds[[1,0,5,3,7,1,2,6][Math.floor(rng()*8)]]:(rng()<.4?'HouseTerrace':rng()<.4?'HouseTownhouse':'HouseFisher')):(rng()<.65?'HouseVilla':'HouseFisher');
    if(district==='hillside'&&rng()<.33)continue;
    let angle=Math.atan2(x-d.x,d.z+d.rz*.4-z)+(rng()-.5)*.55;
    if(town){let nearest=Infinity;for(const road of roads)for(let j=1;j<road.points.length;j++){const a=road.points[j-1],b=road.points[j],dist=segmentDistance(x,z,a,b);if(dist<nearest){nearest=dist;angle=Math.atan2(b.x-a.x,b.z-a.z)+Math.PI/2+(rng()-.5)*.32;}}}
@@ -115,6 +128,23 @@ export function buildSettlementLayout(d:IslandDefinition):SettlementLayout {
   if(terrainHeight(d,x,z)<24)continue;
   add(rng()<.65?'HouseVilla':'HouseFisher','hillside',x,z,(rng()-.5)*.7);
  }
- if(!town){for(const p of houses.filter(p=>p.district==='village'&&p.kind==='HouseTerrace'&&p.x<d.x).slice(0,2)){p.kind='HouseWorkshop';p.height=8.5;}}
+ if(!town){for(const p of houses.filter(p=>p.district==='village'&&p.kind==='HouseTerrace'&&p.x<d.x).slice(0,2)){p.kind='HouseWorkshop';p.height=8.5;}const shed=houses.find(p=>p.kind==='HouseWorkshop');if(shed)shed.kind='HouseBoatyard';}
+ if(town){for(const [i,p] of houses.entries()){
+  const market=plazas.filter(q=>q.market).find(q=>Math.hypot(q.x-p.x,q.z-p.z)<105);
+  if(market&&p.width>14&&i%3===0)p.kind='HouseMarketHall';
+  else if((p.district==='waterfront'||market)&&p.width>17&&i%3===1)p.kind='HouseGranary';
+
+ }
+ const assigned=new Set<HousePlot>();for(const market of plazas.filter(p=>p.market)){
+  const near=houses.filter(p=>p.width>=12&&!assigned.has(p)&&Math.hypot(p.x-market.x,p.z-market.z)<135).sort((a,b)=>Math.hypot(a.x-market.x,a.z-market.z)-Math.hypot(b.x-market.x,b.z-market.z));
+  for(const [i,p] of near.slice(0,2).entries()){p.kind=i===0?'HouseMarketHall':'HouseGranary';p.height=Math.min(p.height,i===0?12:13);assigned.add(p);}
+ }
+ // Only three outlying mill houses: keep the port skyline residential.
+ const satellites:HousePlot[]=[];
+ for(const p of [...houses].sort((a,b)=>b.ground-a.ground)){
+  if(p.district==='waterfront'||assigned.has(p)||p.kind.includes('Market')||p.kind.includes('Granary')||satellites.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<120))continue;
+  p.kind=(['HouseMill','HouseMillTall','HouseMillSquare'] as const)[satellites.length];p.height=24+satellites.length*2;satellites.push(p);if(satellites.length===3)break;
+ }
+ }
  return{houses,roads,plazas};
 }

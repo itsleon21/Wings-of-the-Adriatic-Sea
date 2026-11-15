@@ -1,5 +1,6 @@
 import * as T from 'three';
-import {terrainHeight,random,islands} from './WorldConfig.ts';
+import {terrainHeight,random,islands,coralIslets,coralReefLinks} from './WorldConfig.ts';
+import {mooringSites} from './Moorings.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {appendSurfacePolygon} from './TerrainSurface.ts';
 
@@ -20,7 +21,7 @@ export function addCoralBiome(root:T.Group,d:IslandDefinition){
   const geometry=new T.CylinderGeometry(r*.8,r,delta.length(),6);geometry.applyQuaternion(q);geometry.translate((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);const expanded=geometry.toNonIndexed();trunks.push(...expanded.attributes.position.array);geometry.dispose();expanded.dispose();
  };
  let placed=0;
- for(let attempt=0;placed<80&&attempt<2000;attempt++){
+ for(let attempt=0;placed<120&&attempt<5000;attempt++){
   const x=d.x+(rng()-.5)*d.rx*1.65,z=d.z+(rng()-.5)*d.rz*1.65,h=terrainHeight(d,x,z);
   if(h<3||h>22)continue;placed++;
   const height=16+rng()*12,lean=rng()*6.28,bend=2+rng()*3,points:T.Vector3[]=[];
@@ -44,14 +45,24 @@ export function addCoralBiome(root:T.Group,d:IslandDefinition){
 
 export function addOutpostIslands(root:T.Group,blockers:T.Box3[]){
  const pine=islands.find(d=>d.id==='pine')!,beacon=islands.find(d=>d.id==='lighthouse')!;
- for(const [x,z] of[[-175,100],[130,180]])lodge(root,blockers,pine,x,z);
+ for(const [x,z] of[[-.43,.26],[.32,.47]])lodge(root,blockers,pine,x*pine.rx,z*pine.rz);
  for(const [x,z] of[[-90,130],[85,140],[-110,-115]])lodge(root,blockers,beacon,x,z);
- // One short landing jetty at the foot of the beacon trail.
- let z=beacon.z+beacon.rz*1.05;while(terrainHeight(beacon,beacon.x,z)<2&&z>beacon.z)z-=2;
- const pier=new T.Mesh(new T.BoxGeometry(6,1.2,45),new T.MeshStandardMaterial({color:0x8a7250,roughness:.94}));pier.position.set(beacon.x,2.4,z+20);pier.castShadow=pier.receiveShadow=true;root.add(pier);
- blockers.push(new T.Box3(new T.Vector3(beacon.x-3,0,z-3),new T.Vector3(beacon.x+3,3,z+43)));
+ // The keeper trail connects to the one shared flying-boat jetty, with no duplicate pier.
+ const berth=mooringSites.find(s=>s.id==='lighthouse')!;
  // The final approach to the summit follows a switchback across the southern slope.
- const positions:number[]=[],colors:number[]=[],points=[{x:beacon.x,z},...[[.24,.72],[-.3,.56],[.28,.37],[-.14,.18],[0,0]].map(([x,z])=>({x:beacon.x+x*beacon.rx,z:beacon.z+z*beacon.rz}))];
+ const positions:number[]=[],colors:number[]=[],points=[{x:berth.shoreX,z:berth.shoreZ},...[[.24,.72],[-.3,.56],[.28,.37],[-.14,.18],[0,0]].map(([x,z])=>({x:beacon.x+x*beacon.rx,z:beacon.z+z*beacon.rz}))];
  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),ox=-dz/len*2,oz=dx/len*2;appendSurfacePolygon(beacon,[{x:a.x+ox,z:a.z+oz},{x:b.x+ox,z:b.z+oz},{x:b.x-ox,z:b.z-oz},{x:a.x-ox,z:a.z-oz}],.16,positions,colors,[.58,.49,.33]);}
  const pathGeo=new T.BufferGeometry();pathGeo.setAttribute('position',new T.Float32BufferAttribute(positions,3));pathGeo.setAttribute('color',new T.Float32BufferAttribute(colors,3));pathGeo.computeVertexNormals();const path=new T.Mesh(pathGeo,new T.MeshStandardMaterial({vertexColors:true,roughness:1}));path.name='灯塔岛 / switchback keeper trail';path.receiveShadow=true;root.add(path);
+}
+
+/** Low exposed coral heads delineate the shallow links; sandbars stay below mean sea level. */
+export function addCoralReefLinks(root:T.Group,d:IslandDefinition,blockers:T.Box3[]){
+ const rng=random(d.seed+402),dummy=new T.Object3D(),mesh=new T.InstancedMesh(new T.DodecahedronGeometry(1,0),new T.MeshStandardMaterial({color:0xbeb69a,roughness:1}),54);let count=0;
+ mesh.name='Coral archipelago / reef stepping stones';mesh.receiveShadow=mesh.castShadow=true;
+ for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b];for(let j=0;j<36&&count<54;j++){
+  const t=.30+rng()*.40,x=d.x+(p.x+(q.x-p.x)*t)*d.rx+(rng()-.5)*21,z=d.z+(p.z+(q.z-p.z)*t)*d.rz+(rng()-.5)*21,h=terrainHeight(d,x,z);
+  if(h>-.2||h<-6)continue;const sx=1.5+rng()*2.6,sy=1.8+rng()*2.7,sz=1.4+rng()*2.4,y=Math.max(-1.7,h+.6);
+  if(mooringSites.some(m=>Math.hypot(x-m.berth.x,z-m.berth.z)<115))continue;
+  dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set((rng()-.5)*.3,rng()*6.28,0);dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix);blockers.push(new T.Box3(new T.Vector3(x-sx,y-sy,z-sz),new T.Vector3(x+sx,y+sy,z+sz)));
+ }}mesh.count=count;mesh.computeBoundingSphere();root.add(mesh);
 }

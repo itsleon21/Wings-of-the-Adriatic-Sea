@@ -45,14 +45,14 @@ test('aerobatic flight remains frame-rate independent at 30, 60 and 120 render F
  const reference=run(60);for(const fps of [30,120]){const f=run(fps);assert.ok(f.position.distanceTo(reference.position)<1e-7);assert.ok(f.orientation.angleTo(reference.orientation)<1e-6);}
 });
 
-test('M5 completes the five-checkpoint route and a water landing using only controls',()=>{
+test('M5 completes the full archipelago route and a water landing using only controls',()=>{
  const f=new FlightController(false,M5FlightConfig),m=new MissionManager(),world=new World();m.start();
- for(let i=0;i<60*1000&&m.state==='RUNNING';i++){
+ for(let i=0;i<60*2400&&m.state==='RUNNING';i++){
   const p=m.current!;let input;
   if(f.state!=='AIRBORNE')input={pitch:1,roll:0,yaw:0,throttle:1};else{const desired=Math.atan2(-(p.position.x-f.position.x),-(p.position.z-f.position.z)),error=Math.atan2(Math.sin(desired-f.heading),Math.cos(desired-f.heading));input={pitch:clamp((p.position.y-f.position.y)*.018-f.velocity.y*.13,-.22,.25)/f.tuning.maxPitch,roll:clamp(-error*2,-1,1),yaw:clamp(-error*.25,-.5,.5),throttle:clamp((.6-f.throttle)*5,-1,1)};}
   f.update(1/60,input);m.update(1/60,f.previousPosition,f.position);assert.notEqual(f.state,'CRASHED');assert.equal(world.collides(f.previousPosition,f.position),false);
  }
  assert.equal(m.state,'COMPLETED');
- for(let i=0;i<60*180&&f.state!=='ON_WATER'&&f.state!=='CRASHED';i++)f.update(1/60,{pitch:clamp((.5-f.position.y)*.009-f.velocity.y*.15,-.09,.2)/f.tuning.maxPitch,roll:0,yaw:0,throttle:clamp(((f.state==='AIRBORNE'?.12:0)-f.throttle)*5,-1,1)});
+ for(let i=0;i<60*180&&f.state!=='ON_WATER'&&f.state!=='CRASHED';i++)f.update(1/60,{pitch:clamp((.5-f.position.y)*.009-f.velocity.y*.15,-.09,.2)/f.tuning.maxPitch,roll:0,yaw:0,throttle:clamp(((f.state==='AIRBORNE'?.28:0)-f.throttle)*5,-1,1)});
  assert.equal(f.state,'ON_WATER');assert.equal(f.landingCount,1);
 });

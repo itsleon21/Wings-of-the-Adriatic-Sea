@@ -1,3 +1,5 @@
+import {Workshop,configuredParts} from './upgrades/Workshop';
+import {installedAppearance} from './upgrades/InstalledAppearance';
 import {FlightJournal} from './journey/FlightJournal';
 import {AircraftLivery} from './rendering/AircraftLivery';
 import {raceAircraftCatalog,isRaceAircraft} from './race/RaceAircraft.ts';
@@ -17,16 +19,17 @@ const racing=new URLSearchParams(location.search).get('race')==='1',requestedRet
 const fleetCatalog=racing?raceAircraftCatalog:aircraftCatalog;
 let selected=getAircraft(selectedAircraftId());
 app.innerHTML=`<div id="model-viewport"></div>
-<header><a id="back-home" href="./index.html">← 返回首页</a><span>亚德里亚之鹰 <i>/</i> ${racing?'比赛机库 · 三圈计时赛':'海港机库'}</span><span class="edition">THE ADRIATIC FLEET</span></header>
+<header><a id="back-home" href="./index.html">← 返回首页</a><span>亚德里亚海之翼 <i>/</i> ${racing?'比赛机库 · 点到点竞速':'海港机库'}</span><span class="edition">THE ADRIATIC FLEET</span></header>
 <div class="hangar-rail" aria-hidden="true">HANGAR No. 01 <span>ADRIATIC COAST · ITALIA</span></div><section class="model-title"><div>CHOOSE YOUR WINGS</div><h1 id="aircraft-title"></h1><p id="aircraft-subtitle"></p></section>
 <section class="fleet" aria-label="选择飞机">${fleetCatalog.map(plane=>`<button class="fleet-choice" data-aircraft="${plane.id}" aria-pressed="false"><span class="fleet-number">${plane.number}</span><span class="fleet-copy"><strong>${plane.name}</strong><small>${plane.subtitle}</small></span><span class="fleet-speed"><b>${cruiseKmh(plane)}</b><small>巡航 KM/H</small></span><span class="fleet-check" aria-hidden="true">✓</span></button>`).join('')}<p class="fleet-note" id="aircraft-description"></p></section>
-<aside class="aircraft-specs"><div class="specs-heading">AIRCRAFT DATA</div><span>翼展 <b id="span-value"></b></span><span>机长 <b id="length-value"></b></span><span>驾驶风格 <b class="handling-value" id="handling-value"></b></span></aside>
-<footer><div class="views" role="group" aria-label="观察视角"><button data-view="beauty" aria-pressed="true">透视</button><button data-view="top" aria-pressed="false">顶视</button><button data-view="side" aria-pressed="false">侧视</button><button data-view="front" aria-pressed="false">正视</button><button data-view="engine" aria-pressed="false">发动机</button></div><label><input type="checkbox" id="rotor"> 转动螺旋桨</label><label class="departure-site">起点 <select id="departure-site" aria-label="出发地点"><option value="">港口起飞水域</option>${mooringSites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></label><button id="select-aircraft" class="depart">驾驶这架出发 <span>↗</span></button></footer>
+<a class="hangar-workshop-entry" href="./?workshop=1" id="workshop-entry">改装工坊 <span>部件 · 配置 · 试飞 ↗</span></a><aside class="aircraft-specs"><div class="specs-heading">AIRCRAFT DATA</div><span>翼展 <b id="span-value"></b></span><span>机长 <b id="length-value"></b></span><span>驾驶风格 <b class="handling-value" id="handling-value"></b></span></aside>
+<footer><div class="views" role="group" aria-label="观察视角"><button data-view="beauty" aria-pressed="true">透视</button><button data-view="top" aria-pressed="false">顶视</button><button data-view="side" aria-pressed="false">侧视</button><button data-view="front" aria-pressed="false">正视</button><button data-view="engine" aria-pressed="false">发动机</button></div><label><input type="checkbox" id="rotor"> 转动螺旋桨</label><label class="departure-site">起点 <select id="departure-site" aria-label="出发地点"><option value="">港口基地栈桥（默认）</option>${mooringSites.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></label><button id="select-aircraft" class="depart">驾驶这架出发 <span>↗</span></button></footer>
 <span class="model-stage-label" aria-hidden="true">CRAFTED TO FLY <i>03 / THE FLEET COLLECTION</i></span><span id="view-hint">拖动旋转 · 滚轮缩放</span><div id="loading" role="status">正在准备飞机…</div>`;
 const text=(id:string,value:string)=>{document.getElementById(id)!.textContent=value;};
 function updateSelection(){
- document.title=`${selected.name} · 机库 · 亚德里亚之鹰`;
- text('aircraft-title',selected.name);text('aircraft-subtitle',selected.subtitle);text('aircraft-description',selected.description);
+ const workshopEntry=document.querySelector<HTMLAnchorElement>('#workshop-entry')!;workshopEntry.hidden=racing;workshopEntry.href=`./?aircraft=${selected.id}&workshop=1`;
+ document.title=`${selected.name} · 机库 · 亚德里亚海之翼`;
+ text('aircraft-title',selected.name);text('aircraft-subtitle',selected.subtitle);text('aircraft-description',selected.description);const upgrades=configuredParts(new Workshop(),selected.id,racing?'?race=1':'');const note=document.querySelector('#aircraft-description')!;for(const p of upgrades){const row=document.createElement('p');row.textContent=p.name+'：'+p.effect;note.append(row);}const trial=document.createElement('a');trial.textContent='基础配置试飞 ↗';trial.href=`./?aircraft=${selected.id}&launch=1&trial=stock&configuration=stock`;note.append(trial);if(!racing){const workshop=document.createElement('a');workshop.textContent=' · 改装工坊 ↗';workshop.href=`./?aircraft=${selected.id}&workshop=1`;note.append(workshop);}
  document.querySelector('#span-value')!.innerHTML=`${selected.span.toFixed(1)} <small>m</small>`;
  document.querySelector('#length-value')!.innerHTML=`${selected.length.toFixed(1)} <small>m</small>`;
  text('handling-value',selected.id==='redwing'?'疾速 / 可翻滚':isRaceAircraft(selected.id)?'纪念赛 / 竞速':selected.id==='mc72'?'竞速 / 特技':'舒缓 / 观光');
@@ -75,7 +78,7 @@ if(!WebGL.isWebGL2Available()){
  async function chooseAircraft(id:AircraftId){
   const current=++request;selected=getAircraft(id);floor.position.y=-selected.tuning.hullOffset-.07;focus.y=selected.id==='mc72'||isRaceAircraft(selected.id)?-.15:.65;saveAircraftSelection(id);const url=new URL(location.href);url.searchParams.set('aircraft',id);if(racing)url.searchParams.set('race','1');history.replaceState(null,'',url);updateSelection();chooseView(view);renderer.domElement.setAttribute('aria-label',`${selected.name}三维模型`);
   const loading=document.querySelector<HTMLElement>('#loading')!;loading.hidden=false;loading.textContent=`正在准备${selected.name}…`;depart.disabled=true;
-  const success=await model.load(renderer,id);if(current!==request)return;shadows.prepare(model.root);livery.apply(model.root,souvenir.data.livery,id);
+  const success=await model.load(renderer,id);if(current!==request)return;installedAppearance(model.root,configuredParts(new Workshop(),id, racing?'?race=1':''));shadows.prepare(model.root);livery.apply(model.root,souvenir.data.livery,id);
   loading.hidden=success;if(!success)loading.textContent='精细模型未加载，当前使用程序外形。可重新选择重试。';depart.disabled=false;
   const viewport=document.querySelector<HTMLElement>('#model-viewport')!;viewport.dataset.model=model.assetStatus;viewport.dataset.aircraft=id;
  }
