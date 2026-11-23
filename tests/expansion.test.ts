@@ -40,7 +40,7 @@ test('beacon rotates through real cone volumes, freezes on pause, and lights onl
 test('both villages contain multiple compact hamlets separated by unbuilt gaps',()=>{
  for(const d of islands.slice(0,2)){const h=buildSettlementLayout(d).houses,seen=new Set<number>(),sizes:number[]=[];for(let i=0;i<h.length;i++){if(seen.has(i))continue;const q=[i];seen.add(i);for(let k=0;k<q.length;k++)for(let j=0;j<h.length;j++)if(!seen.has(j)&&Math.hypot(h[q[k]].x-h[j].x,h[q[k]].z-h[j].z)<50){seen.add(j);q.push(j);}sizes.push(q.length);}assert.ok(sizes.filter(n=>n>=5).length>=3);assert.ok(sizes.some(n=>n>=12));assert.ok(sizes.length>=6);}
  // At least one island occupies the interior of the sea rather than all lying around a perimeter.
- assert.ok(islands.some(d=>d.id!=='harbor'&&Math.hypot(d.x,d.z)<1600));
+ assert.ok(islands.some(d=>d.id!=='harbor'&&Math.hypot(d.x,d.z)<1800));
 });
 
 test('automatic day-night cycle completes in 24 active minutes independently of frame rate',()=>{

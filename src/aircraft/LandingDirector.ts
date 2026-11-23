@@ -1,7 +1,7 @@
 import * as T from 'three';
 import type {FlightController} from './FlightController.ts';
 import {landingAdvice,landingProfile} from './LandingGuidance.ts';
-export interface LandingDestination{name:string;position:T.Vector3;outward?:T.Vector3;rescue?:boolean}
+export interface LandingDestination{name:string;position:T.Vector3;outward?:T.Vector3;rescue?:boolean;crew?:boolean}
 export interface LandingPlan {touchdown:T.Vector3;heading:number;distance:number;slope:number;taxiPath?:T.Vector3[]}
 export function planWaterLanding(position:T.Vector3,heading:number,clear:(x:number,z:number)=>boolean):LandingPlan|undefined{
  const distance=T.MathUtils.clamp(Math.max(8,position.y)/.045,240,1800);
@@ -65,6 +65,15 @@ export function planTaskLanding(position:T.Vector3,target:LandingDestination,cle
   }
  }
 }
+export function planLandingRetry(target:LandingDestination,clear:(x:number,z:number)=>boolean){
+ const outward=target.outward?.clone().setY(0).normalize()??new T.Vector3(0,0,1);
+ const reference=target.position.clone().addScaledVector(outward,1600).setY(70);
+ const plan=planTaskLanding(reference,target,clear);
+ if(!plan)return;
+ const back=new T.Vector3(Math.sin(plan.heading),0,Math.cos(plan.heading));
+ const position=plan.touchdown.clone().addScaledVector(back,plan.distance).setY(plan.distance*plan.slope+10);
+ return {position,heading:plan.heading};
+}
 export function clearTaxiPath(from:T.Vector3,to:T.Vector3,clear:(x:number,z:number)=>boolean){
  const length=from.distanceTo(to),count=Math.max(2,Math.ceil(length/30));
  for(let i=0;i<count;i++){
@@ -114,15 +123,17 @@ export class LandingDirector{
     const remainingPath=[flight.position.clone(),...path.slice(Math.min(path.length-1,nearest+1))];
     this.setTaxi(flight.position,goal,wave,remainingPath);
     this.navigationPoint={name:remainingPath.length>2?'沿水道前往 '+target.name:target.name,position:remainingPath[1].clone()};
-    this.message=target.rescue?(metres<=35&&flight.airspeed<=.55?'保持静止 · 正在接人':'滑行至求救船35米内 · 降至2 km/h以下'):
-     metres<=35&&flight.airspeed<5?'已到任务停靠点 · 按 F 靠泊交付':flight.airspeed>5?'已着水 · 收油减速，再循光线滑行至 '+target.name:'沿水面光线滑行 · '+target.name+' '+Math.round(metres)+' m · 18 km/h以下按 F';
+    this.message=target.rescue?(metres<=35&&flight.groundSpeed<=.55?'保持静止 · 正在接人':'滑行至求救船35米内 · 降至2 km/h以下'):
+     target.crew&&metres<=22&&flight.groundSpeed*3.6<=5?'已到蓝帆船侧 · 按 F 与船员交谈':
+     target.crew?'循光线滑行至船侧 · '+Math.round(metres)+' m · 减速至 5 km/h 后按 F':
+     metres<=35&&flight.groundSpeed<5?'已到任务停靠点 · 按 F 靠泊交付':flight.groundSpeed>5?'已着水 · 收油减速，再循光线滑行至 '+target.name:'沿水面光线滑行 · '+target.name+' '+Math.round(metres)+' m · 18 km/h以下按 F';
     return;
    }
   }
   this.corridor.visible=true;
   this.retry-=dt;
   if(!this.activated||!this.plan&&this.retry<=0){
-   this.plan=target?planTaskLanding(flight.position,target,clear):planWaterLanding(flight.position,flight.heading,clear);this.activated=true;this.retry=2;
+   this.plan=target?planTaskLanding(flight.position,target,clear):planWaterLanding(flight.position,flight.groundTrack,clear);this.activated=true;this.retry=2;
   }
   const plan=this.plan;this.root.visible=!!plan;
   if(!plan){
@@ -135,7 +146,7 @@ export class LandingDirector{
   const heightError=flight.position.y-Math.max(flight.tuning.hullOffset,remaining*plan.slope);
   const waterGood=clear(plan.touchdown.x,plan.touchdown.z);
   const contact=flight.landingContact;
-  const advice=landingAdvice(flight.tuning,{...contact,state:flight.state,speed:flight.airspeed,bank:flight.bank,pitch:flight.pitch,throttle:flight.throttle,landingCount:flight.landingCount,overWater:waterGood,clearAhead:waterGood,rolling:flight.rolling||!!flight.maneuver});
+  const advice=landingAdvice(flight.tuning,{...contact,state:flight.state,speed:flight.airspeed,groundSpeed:flight.groundSpeed,bank:flight.bank,pitch:flight.pitch,throttle:flight.throttle,landingCount:flight.landingCount,overWater:waterGood,clearAhead:waterGood,rolling:flight.rolling||!!flight.maneuver});
   const danger=!waterGood||Math.abs(lateral)>90||advice.tone==='danger'||remaining< -100;
   this.mat.color.setHex(danger?0xf28172:advice.speedGood&&advice.sinkGood&&advice.bankGood&&Math.abs(heightError)<12&&Math.abs(lateral)<25?0x78eac5:0xffd185);
   (this.zone.material as T.MeshBasicMaterial).color.copy(this.mat.color);

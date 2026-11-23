@@ -9,3 +9,5 @@
 #race-status p{margin:6px 0}#race-status p:empty{display:none}#race-status h2{margin:10px 0 7px}#race-guidance{color:#bfe9de;border-left:2px solid #8ebfb0;padding-left:8px}#race-guidance[data-warning="true"]{color:#ffda91;border-color:#e8b45f}#race-status .ghost-option{margin:7px 0}#race-status .race-shortcut{font-size:9px;opacity:.75;margin-top:11px}
 
 #race-laps{white-space:pre-line}#race-phase{line-height:1.35}
+
+#race-status[hidden],#race-finish[hidden]{display:none}

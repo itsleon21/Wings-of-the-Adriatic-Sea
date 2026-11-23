@@ -9,9 +9,8 @@ test('simultaneous start, ordered point-to-point gates, finish and clean retries
  const r=new RaceManager();r.update(3,new T.Vector3(),new T.Vector3());assert.equal(r.state,'RUNNING');r.update(1,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,1);cross(r,1);assert.equal(r.index,0);
  for(let i=0;i<raceCourse.length;i++)assert.equal(cross(r,i),true);assert.equal(r.state,'COMPLETED');assert.equal(r.index,raceCourse.length-1);assert.equal(r.lap,1);assert.equal(r.sectors.length,raceCourse.length);const elapsed=r.elapsed;r.update(100,new T.Vector3(),new T.Vector3());assert.equal(r.elapsed,elapsed);r.reset();assert.equal(r.state,'COUNTDOWN');assert.equal(r.elapsed,0);r.fail();assert.equal(cross(r,0),false);
 });
-test('race visits every main island inside the chart and clears terrain along each airborne sector',()=>{
- const stops=allLandforms.filter(d=>['coral','hotel','cove','pine','harbor','town','lighthouse'].includes(d.id));
- for(const island of stops)assert.ok(raceCourse.some(p=>Math.hypot(p.position.x-island.x,p.position.z-island.z)<5),island.id);
+test('race follows the harbour circuit in order and clears terrain inside the chart',()=>{
+ assert.deepEqual(raceCourse.map(g=>g.islandId),['harbor','town','coral','hotel','pine','lighthouse','harbor']);
  const route=[raceLaunch,...raceCourse.map(g=>g.position)];
  for(let leg=1;leg<route.length;leg++){
   const start=route[leg-1],end=route[leg];
@@ -30,7 +29,7 @@ test('all three racers physically take off on the moving sea and reset at their 
 test('racers export real independent controls, packed paint, vertex AO and appropriate propeller counts',()=>{
  for(const a of raceAircraftCatalog){const data=readFileSync(new URL('../public/models/'+a.modelFile,import.meta.url)),len=data.readUInt32LE(12),g=JSON.parse(data.toString('utf8',20,20+len));for(const name of['AircraftRoot','PropellerPivot','LeftAileron','RightAileron','Elevator','Rudder'])assert.ok(g.nodes.some((n:{name:string})=>n.name===name),a.id+' '+name);const blades=g.nodes.filter((n:{name:string})=>n.name.startsWith('Twisted propeller blade'));assert.equal(blades.length,a.id==='m67'?3:2);assert.ok(g.images.length>=1);assert.ok(g.meshes.some((m:{primitives:{attributes:Record<string,number>}[]})=>m.primitives.some(p=>p.attributes.COLOR_0!==undefined)));assert.ok(data.length<5*1024*1024);}
 });
-test('fireworks freeze exactly on pause and are cleared by reset with finite particle positions',()=>{const f=new RaceFireworks();f.start();f.update(2);const before=Array.from(f.points.geometry.attributes.position.array);f.update(0);assert.deepEqual(Array.from(f.points.geometry.attributes.position.array),before);for(const p of before)assert.ok(Number.isFinite(p));assert.equal(f.points.visible,true);f.reset();assert.equal(f.points.visible,false);f.start();f.update(20);assert.equal(f.points.visible,false);f.dispose();});
+test('fireworks freeze exactly on pause and are cleared by reset with finite particle positions',()=>{const f=new RaceFireworks();f.start(new T.Vector3(150,280,420),new T.Vector3(1,0,0));f.update(2);const before=Array.from(f.points.geometry.attributes.position.array);f.update(0);assert.deepEqual(Array.from(f.points.geometry.attributes.position.array),before);for(const p of before)assert.ok(Number.isFinite(p));assert.equal(f.points.visible,true);f.reset();assert.equal(f.points.visible,false);f.start(new T.Vector3(150,280,420),new T.Vector3(1,0,0));f.update(20);assert.equal(f.points.visible,false);f.dispose();});
 
 test('exported racing silhouettes retain metre-scale reference dimensions and complete twin floats',()=>{
  for(const a of raceAircraftCatalog){

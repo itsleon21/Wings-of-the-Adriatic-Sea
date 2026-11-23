@@ -2,15 +2,25 @@ import {Vector3} from 'three';
 import {crossesCheckpoint} from '../missions/MissionManager.ts';
 import type {Checkpoint} from '../missions/MissionManager.ts';
 import {islands,hotelIsland} from '../world/WorldConfig.ts';
-export const coral=islands.find(d=>d.id==='coral')!;
-export const raceLaunch=new Vector3(coral.x-1200,0,coral.z-1200);
-// Fly over all seven inhabited/natural islands, with clearance above roofs and terrain.
-const stops=[coral,hotelIsland,...['cove','pine','harbor','town','lighthouse'].map(id=>islands.find(d=>d.id===id)!)];
-export const raceCourse:Checkpoint[]=stops.map((island,i)=>{
- const position=new Vector3(island.x,i===0?220:310,island.z);
- const previous=i?stops[i-1]:{x:raceLaunch.x,z:raceLaunch.z};
- return{name:(i===0?'起点 · ':i===stops.length-1?'终点 · ':'')+island.name+'上空',
-  position,normal:new Vector3(position.x-previous.x,0,position.z-previous.z).normalize(),radius:130};
+const [base,town,lighthouse,,pine,coral]=islands;
+export const raceCourseId='harbor-circuit-recharted-3';
+export const raceLaunch=new Vector3(base.x-1160,0,base.z);
+export const raceStops=[base,town,coral,hotelIsland,pine,lighthouse] as const;
+const gatePositions=[
+ new Vector3(base.x-2240,220,base.z),
+ new Vector3(town.x,310,town.z),
+ new Vector3(coral.x+100,245,coral.z-70),
+ new Vector3(hotelIsland.x,235,hotelIsland.z),
+ new Vector3(pine.x,270,pine.z),
+ new Vector3(lighthouse.x,310,lighthouse.z),
+ new Vector3(base.x-180,280,base.z+330),
+];
+export const raceCourse:Checkpoint[]=gatePositions.map((position,i)=>{
+ const inbound=position.clone().sub(gatePositions[i-1]??raceLaunch).setY(0).normalize();
+ const next=gatePositions[i+1];
+ const normal=next?inbound.add(next.clone().sub(position).setY(0).normalize()).normalize():inbound;
+ const name=i===0?'起点 · 港口基地外海':i===gatePositions.length-1?'终点 · 港口基地':raceStops[i].name+'上空';
+ return {name,position,normal,islandId:i===gatePositions.length-1?base.id:raceStops[i].id,radius:i===0?150:175};
 });
 export const raceHeading=Math.atan2(-(raceCourse[0].position.x-raceLaunch.x),-(raceCourse[0].position.z-raceLaunch.z));
 export class RaceInvitation{

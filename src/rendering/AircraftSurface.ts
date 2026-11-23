@@ -44,7 +44,49 @@ export function prepareAircraftSurface(material:T.MeshPhysicalMaterial,hasAO:boo
  material.clearcoatNormalMap=null;
  material.envMapIntensity=propellerMetal?.62:/lacquer|enamel/.test(name)?.96:/alloy|brass|bronze/.test(name)?1:.8;
  if(hasAO)material.vertexColors=false;
+ const finish=/wooden|walnut|golden varnished propeller/.test(name)?'wood':/radiator/.test(name)?'radiator':/fabric/.test(name)?'fabric':/lacquer|enamel/.test(name)?'paint':'';
+ // Scene.environment supplies its own intensity, so scale the reflected lobe
+ // in the shader as well as roughening the material in the flight model.
+ const skySpecular={value:1};
+ aircraftSkySpecular.set(material,skySpecular);
  material.onBeforeCompile=shader=>{
+  shader.uniforms.aircraftSkySpecular=skySpecular;
+  shader.fragmentShader='uniform float aircraftSkySpecular;\n'+shader.fragmentShader.replace(
+   '#include <aomap_fragment>',`#include <aomap_fragment>
+   reflectedLight.indirectSpecular*=aircraftSkySpecular;
+   #ifdef USE_CLEARCOAT
+    clearcoatSpecularIndirect*=aircraftSkySpecular;
+   #endif`);
+  if(finish){
+   shader.vertexShader='varying vec3 finishPoint;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nfinishPoint=position;');
+   shader.fragmentShader='varying vec3 finishPoint;\n'+shader.fragmentShader;
+   const pattern=finish==='wood'?'finishPoint.y*72.+sin(finishPoint.x*5.+finishPoint.z*13.)*.53':
+    finish==='radiator'?'(finishPoint.x+finishPoint.y)*55.':
+    finish==='fabric'?'(finishPoint.x+finishPoint.y)*240.':'finishPoint.z*2.7+sin(finishPoint.x*2.+finishPoint.y*3.)*.32';
+   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    float grainAxis=${pattern};
+    float finishDetail=cos(grainAxis*6.28318)*(1.-smoothstep(.15,.55,fwidth(grainAxis)));
+    ${finish==='fabric'?'finishDetail*=cos(finishPoint.z*1400.)*(1.-smoothstep(.9,3.1,fwidth(finishPoint.z*1400.)));':''}
+    diffuseColor.rgb*=1.+finishDetail*${finish==='wood'?'.14':finish==='radiator'?'.12':finish==='fabric'?'.07':'.009'};`);
+   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+finishDetail*.035,.08,1.);');
+  }
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_begin>',
+   'roughnessFactor=mix(roughnessFactor,max(.86,roughnessFactor),(1.-aircraftSkySpecular)*.52);\n#include <normal_fragment_begin>');
+  if(finish==='paint'){
+   // Let the authored panel roughness modulate the varnish lobe as well as the substrate.
+   shader.fragmentShader=shader.fragmentShader.replace('#include <lights_physical_fragment>',`#include <lights_physical_fragment>
+    #ifdef USE_CLEARCOAT
+     float exposedCoat=smoothstep(.54,.94,aircraftSkySpecular);
+     material.clearcoatRoughness=clamp(material.clearcoatRoughness+(roughnessFactor-.40)*.19-.055*exposedCoat,.14,.88);
+     material.clearcoat=min(1.,material.clearcoat*(1.+.57*exposedCoat));
+    #endif`);
+   shader.fragmentShader=shader.fragmentShader.replace('vec3 totalDiffuse =',`
+    #ifdef USE_CLEARCOAT
+     clearcoatSpecularDirect*=1.+.65*exposedCoat;
+     clearcoatSpecularIndirect*=1.+.28*exposedCoat;
+    #endif
+    vec3 totalDiffuse =`);
+  }
   // Preserve a finite base image even at singular thin-metal highlight directions.
   shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`#include <opaque_fragment>
    if(any(isnan(gl_FragColor.rgb))||any(isinf(gl_FragColor.rgb)))gl_FragColor.rgb=diffuseColor.rgb*.2;
@@ -58,5 +100,11 @@ export function prepareAircraftSurface(material:T.MeshPhysicalMaterial,hasAO:boo
    reflectedLight.indirectDiffuse*=aircraftOcclusion;
    reflectedLight.indirectSpecular*=mix(1.0,aircraftOcclusion,.45);`);
  };
- material.customProgramCacheKey=()=> 'aircraft-finite-radiance-v3-'+hasAO;material.needsUpdate=true;
+ material.customProgramCacheKey=()=> 'aircraft-finish-v6-'+finish+'-'+hasAO;material.needsUpdate=true;
+}
+
+const aircraftSkySpecular=new WeakMap<T.Material,T.IUniform<number>>();
+export function setAircraftSkySpecular(material:T.Material,strength:number){
+ const uniform=aircraftSkySpecular.get(material);
+ if(uniform)uniform.value=strength;
 }

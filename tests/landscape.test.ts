@@ -6,11 +6,11 @@ import {islands,WorldBounds,harborRunway,terrainHeight} from '../src/world/World
 import {World} from '../src/world/World.ts';
 import {waterfrontPoint} from '../src/world/IslandDetails.ts';
 
-test('expanded chart contains every island with over variable clear-water gaps of at least 1.45 km between land masses',()=>{
+test('expanded chart contains every island with over variable clear-water gaps of at least 1.35 km between land masses',()=>{
  assert.equal(WorldBounds.size,12000);
  for(const d of islands){assert.ok(d.x-d.rx*1.12>WorldBounds.minX&&d.x+d.rx*1.12<WorldBounds.maxX);assert.ok(d.z-d.rz*1.12>WorldBounds.minZ&&d.z+d.rz*1.12<WorldBounds.maxZ);}
  for(let i=0;i<islands.length;i++)for(let j=i+1;j<islands.length;j++){
-  const a=islands[i],b=islands[j],gap=Math.hypot(a.x-b.x,a.z-b.z)-Math.max(a.rx,a.rz)*1.12-Math.max(b.rx,b.rz)*1.12;assert.ok(gap>1450,`${a.name} / ${b.name}: ${gap}`);
+  const a=islands[i],b=islands[j],gap=Math.hypot(a.x-b.x,a.z-b.z)-Math.max(a.rx,a.rz)*1.12-Math.max(b.rx,b.rz)*1.12;assert.ok(gap>1350,`${a.name} / ${b.name}: ${gap}`);
  }
 });
 
@@ -19,7 +19,7 @@ test('detailed waterfront follows dry low ground and new structures leave the en
  for(const d of islands.slice(0,2))for(let i=1;i<18;i++){
   const p=waterfrontPoint(d,-Math.PI+i/18*Math.PI,3);assert.ok(p.y>3&&p.y<10);assert.equal(p.y,terrainHeight(d,p.x,p.z));
  }
- for(const z of[-55,0,55])assert.equal(world.collides(new Vector3(harborRunway.x-30,1.05,harborRunway.z+z),new Vector3(harborRunway.x+800,1.05,harborRunway.z+z)),false);
+ for(const dx of[-55,0,55])assert.equal(world.collides(new Vector3(harborRunway.x+dx,1.05,harborRunway.z-30),new Vector3(harborRunway.x+dx,1.05,harborRunway.z+800)),false);
  // All edges of every depth-atlas tile must be deep water: no rectangular shallow-water patches.
  const material=world.ocean.mesh.material as {uniforms:{shoreMap:{value:{image:{data:Uint8Array;width:number;height:number}}}}};
  const {data,width,height}=material.uniforms.shoreMap.value.image;

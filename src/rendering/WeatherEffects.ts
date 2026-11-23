@@ -4,6 +4,7 @@ import {CloudPass} from './CloudPass.ts';
 import type {DaylightValues} from './TimeOfDay.ts';
 import type {WeatherId} from './WeatherConfig.ts';
 import {random} from '../world/WorldConfig.ts';
+import {marineWindDirection,marineWindSpeed} from '../world/MarineWind.ts';
 /** Camera-local rain streaks: deterministic motion, no per-frame geometry rebuild or intersecting sheets. */
 export class WeatherEffects{
  private clouds:CloudVolumes;private cloudScene=new T.Scene();
@@ -11,14 +12,16 @@ export class WeatherEffects{
  constructor(scene:T.Scene){this.clouds=new CloudVolumes(this.cloudScene);this.rain=createRainStreaks(this.opacity,this.time,this.wind,this.rainVelocity,this.rainTravel);scene.add(this.rain);}
  createCloudPass(camera:T.PerspectiveCamera){return new CloudPass(this.cloudScene,camera,this.clouds);}
  cloudImmersionAt(position:T.Vector3){return this.clouds.immersion(position);}
- get cloudLayout(){return this.clouds.layout;}
+ get cloudLayout(){return this.clouds.shadowLayout;}
  setLighting(_direction:T.Vector3,_color:T.Color,day:number,sunStrength=1,clock?:DaylightValues){this.clouds.setLighting(_direction,_color,day,sunStrength,clock);}
- update(dt:number,camera:T.Camera,rain:number,wind:number,weather:WeatherId='sunny',visibility=16000,velocity?:T.Vector3,overhead=false){this.clouds.update(dt,rain,wind,weather,visibility);const target=this.clouds.immersion(camera.position);this.immersion+=(target-this.immersion)*(dt===0?1:1-Math.exp(-dt*4));this.time.value+=dt;this.opacity.value=rain;this.wind.value=wind;this.rainVelocity.value.copy(relativeRainVelocity(wind,velocity,overhead));this.rainTravel.value.addScaledVector(this.rainVelocity.value,dt);this.rainTravel.value.set(T.MathUtils.euclideanModulo(this.rainTravel.value.x,110),T.MathUtils.euclideanModulo(this.rainTravel.value.y,65),T.MathUtils.euclideanModulo(this.rainTravel.value.z,110));this.rain.position.copy(camera.position);this.rain.visible=rain>.005;}
+ update(dt:number,camera:T.Camera,rain:number,wind:number,weather:WeatherId='sunny',visibility=16000,velocity?:T.Vector3,overhead=false,gust=0){this.clouds.update(dt,rain,wind+gust*.6,weather,visibility);const target=this.clouds.immersion(camera.position);this.immersion+=(target-this.immersion)*(dt===0?1:1-Math.exp(-dt*4));this.time.value+=dt;this.opacity.value=rain;this.wind.value=wind;this.rainVelocity.value.copy(relativeRainVelocity(wind,velocity,overhead,gust));this.rainTravel.value.addScaledVector(this.rainVelocity.value,dt);this.rainTravel.value.set(T.MathUtils.euclideanModulo(this.rainTravel.value.x,110),T.MathUtils.euclideanModulo(this.rainTravel.value.y,65),T.MathUtils.euclideanModulo(this.rainTravel.value.z,110));this.rain.position.copy(camera.position);this.rain.visible=rain>.005;}
  dispose(){this.clouds.dispose();this.rain.removeFromParent();this.rain.geometry.dispose();(this.rain.material as T.Material).dispose();}
 }
 
-export function relativeRainVelocity(wind:number,velocity=new T.Vector3(),overhead=false){
- const relative=new T.Vector3(7+wind*12,-32,3+wind*7).sub(overhead?new T.Vector3():velocity);
+export function relativeRainVelocity(wind:number,velocity=new T.Vector3(),overhead=false,gust=0){
+ const drift=marineWindSpeed(wind,gust);
+ const relative=new T.Vector3(marineWindDirection.x*drift,-32,marineWindDirection.z*drift);
+ if(!overhead)relative.sub(velocity);
  relative.x=T.MathUtils.clamp(relative.x,-155,155);relative.y=T.MathUtils.clamp(relative.y,-65,-5);relative.z=T.MathUtils.clamp(relative.z,-155,155);return relative;
 }
 export function createRainStreaks(opacity={value:0},time={value:0},wind={value:.2},rainVelocity={value:new T.Vector3(10,-32,5)},rainTravel={value:new T.Vector3()}){

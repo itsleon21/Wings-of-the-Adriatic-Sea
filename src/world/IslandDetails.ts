@@ -1,12 +1,15 @@
 import * as T from 'three';
-import { islands, terrainHeight, random,bayProfile } from './WorldConfig.ts';
+import { islands, terrainHeight, random,bayProfile,harborPoint,harborLocal,townPoint,townLocal,townDirection,townYaw } from './WorldConfig.ts';
 import type { IslandDefinition } from './WorldConfig.ts';
 import {appendSurfacePolygon} from './TerrainSurface.ts';
+import {harborGroundCover} from './HarborRelief.ts';
+import {foliateCrown} from './PlantGeometry.ts';
 
 export interface ShorePoint { x:number; z:number; y:number; nx:number; nz:number }
 /** The quay and village follow the actual inner shoreline, rather than an unrelated grid. */
 export function waterfrontPoint(d:IslandDefinition, angle:number, inland=0):ShorePoint {
- if(d.id==='town'&&!d.canonical){const p=waterfrontPoint({...d,canonical:true},angle,inland);return{x:2*d.x-p.x,z:2*d.z-p.z,y:terrainHeight(d,2*d.x-p.x,2*d.z-p.z),nx:-p.nx,nz:-p.nz};}
+ if(d.id==='town'&&!d.canonical){const p=waterfrontPoint({...d,canonical:true},angle,inland),v=townDirection(p.nx,p.nz),world=townPoint(d,p.x,p.z);return{...world,y:terrainHeight(d,world.x,world.z),nx:v.x,nz:v.z};}
+ if(d.id==='harbor'&&!d.canonical){const p=waterfrontPoint({...d,canonical:true},angle,inland),world=harborPoint(d,p.x,p.z);return{...world,y:terrainHeight(d,world.x,world.z),nx:-p.nz,nz:p.nx};}
  const nx=Math.cos(angle),nz=Math.sin(angle),cx=d.x,cz=d.z+d.rz*bayProfile(d).offset;
  let radius=10;
  for(;radius<d.rx*1.8;radius+=2){if(terrainHeight(d,cx+nx*radius,cz+nz*radius)>3.5)break;}
@@ -14,19 +17,32 @@ export function waterfrontPoint(d:IslandDefinition, angle:number, inland=0):Shor
  const x=cx+nx*radius,z=cz+nz*radius;
  return{x,z,y:terrainHeight(d,x,z),nx,nz};
 }
+export function quayFingers(d:IslandDefinition){
+ const town=d.id==='town',angles=town?[-2.12,-1.45,-.63]:[-2.73,-2.18,-1.62,-1.04,-.49];
+ return angles.map(a=>{
+  const p=waterfrontPoint(d,a,-3);
+  // Follow the basin axis from each landing; local tangents would create a fan.
+  const bearing=town?(d.canonical?0:townYaw)+.07*Math.cos(a):Math.atan2(-p.nx,-p.nz);
+  return {...p,nx:-Math.sin(bearing),nz:-Math.cos(bearing)};
+ });
+}
 export function inTakeoffChannel(d:IslandDefinition,x:number,z:number,padding=0) {
- return d.id==='harbor'&&Math.abs(z-d.z-510)<95+padding&&x>d.x-100-padding;
+ if(d.id!=='harbor')return false;
+ const p=d.canonical?{x,z}:harborLocal(d,x,z);
+ return Math.abs(p.z-d.z-510)<95+padding&&p.x>d.x-100-padding&&p.x<d.x+1100+padding;
 }
 
-/** North-facing town harbour: keep its basin, mouth and approach free of decorative rocks. */
-export function inTownHarborApproach(d:IslandDefinition,x:number,z:number,padding=0){return d.id==='town'&&z<d.z-d.rz*.18+padding&&Math.abs(x-d.x)<d.rx*1.32+padding;}
+/** Town harbour: keep its basin, mouth and approach free of decorative rocks. */
+export function inTownHarborApproach(d:IslandDefinition,x:number,z:number,padding=0){if(d.id!=='town')return false;const p=d.canonical?{x,z}:townLocal(d,x,z);return p.z>d.z+d.rz*.18-padding&&Math.abs(p.x-d.x)<d.rx*1.32+padding;}
 export const harborBreakwaterArms=[[[-.45,.52],[-.50,.73],[-.40,.83],[-.22,.84]],[[.45,.52],[.46,.65],[.42,.75]]];
 export const townBreakwaterArms=[[[-.45,.52],[-.50,.67],[-.50,.86],[-.42,.94]],[[.45,.52],[.50,.67],[.50,.86],[.42,.94]]];
 /** A single world-space definition owns wall geometry AND beacon foundations. */
 export function breakwaterLayout(d:IslandDefinition){
- const facing=d.id==='town'?-1:1;
  return (d.id==='town'?townBreakwaterArms:harborBreakwaterArms).map(arm=>{
-  const points=arm.map(([x,z])=>({x:d.x+x*d.rx*facing,z:d.z+z*d.rz*facing}));
+  const points=arm.map(([x,z])=>{
+   const p={x:d.x+x*d.rx,z:d.z+z*d.rz};
+   return d.canonical?p:d.id==='town'?townPoint(d,p.x,p.z):harborPoint(d,p.x,p.z);
+  });
   const heights=points.flatMap((p,i)=>i?Array.from({length:13},(_,j)=>terrainHeight(d,points[i-1].x+(p.x-points[i-1].x)*j/12,points[i-1].z+(p.z-points[i-1].z)*j/12)):[]);
   return{points,tip:points.at(-1)!,deckY:Math.max(4.8,...heights.map(h=>h+.8))};
  });
@@ -65,8 +81,8 @@ class DetailBuilder {
   batch('Limestone quay blocks and retaining walls',new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial({color:0xffffff,roughness:.93}),this.blocks,true);
   batch('Harbor timber decking and promenade furniture',new T.BoxGeometry(1,1,1),new T.MeshStandardMaterial({color:0x76634a,roughness:.92}),this.wood,true);
   batch('Cast iron mooring bollards',new T.CylinderGeometry(1,1,1,7),new T.MeshStandardMaterial({color:0x394b4c,roughness:.58,metalness:.35}),this.posts,true);
-  batch('Mediterranean scrub',new T.IcosahedronGeometry(1,0),new T.MeshStandardMaterial({color:0x657846,roughness:1,flatShading:true}),this.shrubs);
-  const crown=new T.IcosahedronGeometry(1,1),pos=crown.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i),r=1+Math.sin(x*4.3+z*2.1)*.10+Math.cos(y*5.1-z*3.2)*.07;pos.setXYZ(i,x*r,y*r,z*r);}crown.computeVertexNormals();
+  batch('Mediterranean scrub',foliateCrown(2,6),new T.MeshStandardMaterial({color:0x657846,roughness:1}),this.shrubs);
+  const crown=foliateCrown(3,9);
   batch('Broad lobed umbrella pine and olive canopies',crown,new T.MeshStandardMaterial({color:0xffffff,roughness:.98,flatShading:false}),this.canopies,true);
   batch('Crooked umbrella pine trunks and boughs',new T.CylinderGeometry(.7,1,1,6),new T.MeshStandardMaterial({color:0x74624d,roughness:.96}),this.treeWood,true);
   if(this.triangles.length){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(this.triangles,3));geo.setAttribute('color',new T.Float32BufferAttribute(this.colors,3));geo.computeVertexNormals();const mesh=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:.94,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));mesh.name='Terrain-conforming hillside footpaths';mesh.castShadow=mesh.receiveShadow=true;this.root.add(mesh);}
@@ -74,12 +90,13 @@ class DetailBuilder {
 }
 
 function harborDetails(d:IslandDefinition,b:DetailBuilder) {
- const rng=random(d.seed+314),count=72;
+ const rng=random(d.seed+314),count=72,slipAngle=-1.89;
  for(let i=0;i<=count;i++){
   const a=-Math.PI+.10+i/count*(Math.PI-.20),p=waterfrontPoint(d,a,3);
   if(p.y<0||p.y>35||inTakeoffChannel(d,p.x,p.z,20))continue;
   if(i%2===0){
    const next=waterfrontPoint(d,a+.042,3),length=Math.hypot(next.x-p.x,next.z-p.z)+.4,angle=Math.atan2(next.x-p.x,next.z-p.z);
+   if(d.id==='harbor'&&Math.abs(a+.021-slipAngle)<.071)continue;
    const wallTop=Math.min(12,Math.max(4.4,p.y+.55));
    b.block((p.x+next.x)/2,wallTop/2-1,(p.z+next.z)/2,5.5,wallTop+2,length,angle,0xbcb198,true);
    b.block((p.x+next.x)/2,wallTop+.05,(p.z+next.z)/2,6.2,.42,length+.4,angle,0xd0c4aa);
@@ -87,15 +104,40 @@ function harborDetails(d:IslandDefinition,b:DetailBuilder) {
   }
  }
 
+ if(d.id==='harbor'){
+  // A recessed working slip separates the repair apron from passenger jetties.
+  const head=waterfrontPoint(d,slipAngle,15),toe=waterfrontPoint(d,slipAngle,-21);
+  const edge=(site:ShorePoint,side:number,y:number)=>new T.Vector3(site.x+site.nz*side,y,site.z-site.nx*side);
+  const headY=head.y+.18,toeY=-.32,slipStone=new T.Color(0x918473);
+  const hl=edge(head,-10,headY),hr=edge(head,10,headY),tl=edge(toe,-9,toeY),tr=edge(toe,9,toeY);
+  b.tri(hl,hr,tr,slipStone);b.tri(hl,tr,tl,slipStone);
+  for(const [top,bottom] of [[hl,tl],[tr,hr]]){
+   const topBed=top.clone().setY(-3),bottomBed=bottom.clone().setY(-3);
+   b.tri(top,bottom,bottomBed,slipStone);b.tri(top,bottomBed,topBed,slipStone);
+  }
+  const apron=waterfrontPoint(d,slipAngle,17),back=waterfrontPoint(d,slipAngle,36);
+  b.ribbon(d,[new T.Vector2(apron.x,apron.z),new T.Vector2(back.x,back.z)],25,0xa19782);
+  const angle=Math.atan2(head.nx,head.nz);
+  for(const side of[-1,1]){
+   const anchor=edge(head,side*8,headY);
+   b.block(anchor.x,headY+.45,anchor.z,1.9,.9,1.5,angle,0x79736b,true);
+   b.block(anchor.x,headY+1,anchor.z,1.4,.30,.58,angle,0x494744);
+   const end=edge(toe,side*4.6,toeY+.10),start=edge(head,side*4.6,headY+.10);
+   const along=new T.Vector3(head.nz,0,-head.nx).multiplyScalar(.085);
+   b.tri(start.clone().sub(along),start.clone().add(along),end.clone().add(along),new T.Color(0x786453));
+   b.tri(start.clone().sub(along),end.clone().add(along),end.clone().sub(along),new T.Color(0x786453));
+  }
+ }
+
  // Timber jetties project into the northern half of the bay, leaving a broad open mouth.
- for(const a of(d.id==='town'?[-2.12,-1.45,-.63]:[-2.73,-2.18,-1.62,-1.04,-.49])){
-  const p=waterfrontPoint(d,a,-3),length=(d.id==='town'?32:50)+rng()*24,angle=Math.atan2(-p.nx,-p.nz),cx=p.x-p.nx*length/2,cz=p.z-p.nz*length/2;
+ for(const p of quayFingers(d)){
+  const length=(d.id==='town'?32:50)+rng()*24,angle=Math.atan2(-p.nx,-p.nz),cx=p.x-p.nx*length/2,cz=p.z-p.nz*length/2;
   if(inTakeoffChannel(d,cx,cz,24)||p.y>28)continue;
   b.beam(cx,2.3,cz,7,1.4,length,angle);b.block(cx,.2,cz,3,4,length,angle,0x8f8c78,true);
   for(let j=0;j<length;j+=4){const x=p.x-p.nx*j,z=p.z-p.nz*j;b.beam(x,3.05,z,7.4,.18,.22,angle);if(j%12===0)for(const side of[-1,1]){b.post(x+side*p.nz*3.4,1.5,z-side*p.nx*3.4,.35,4.6);b.post(x+side*p.nz*2.6,3.5,z-side*p.nx*2.6,.26,.75);}}
   for(const side of[-1,1]){const x=p.x-p.nx*(length-14)+p.nz*side*10,z=p.z-p.nz*(length-14)-p.nx*side*10;b.beam(x,2.3,z,18,1.2,5,angle);}
  }
- // Two masonry arms shelter the basin while leaving the eastbound water runway open.
+ // Two masonry arms shelter the basin while leaving the water runway open.
  for(const arm of breakwaterLayout(d)){
   for(let i=1;i<arm.points.length;i++){
    const a=new T.Vector2(arm.points[i-1].x,arm.points[i-1].z),end=new T.Vector2(arm.points[i].x,arm.points[i].z),length=a.distanceTo(end),segments=Math.ceil(length/12),angle=Math.atan2(end.x-a.x,end.y-a.y);
@@ -129,11 +171,12 @@ function hillsideDetails(d:IslandDefinition,b:DetailBuilder,occupied?:(x:number,
   const size=1.4+rng()*2.6;b.shrubs.push({p:new T.Vector3(x,h+size*.3,z),s:new T.Vector3(size,size*.65,size*.8),r:new T.Euler(rng()*.3,rng()*6.28,rng()*.3)});
  }
  // Umbrella pines carry broad, overlapping canopy lobes above visible branching trunks.
- const trees=d.id==='lighthouse'?14:d.id==='harbor'?62:48;
+ const trees=d.id==='pine'?0:d.id==='lighthouse'?14:d.id==='harbor'?62:48;
  for(let i=0,attempt=0;i<trees&&attempt<trees*10;attempt++){
   const x=d.x+(rng()-.5)*d.rx*1.65,z=d.z+(rng()-.5)*d.rz*1.65,h=terrainHeight(d,x,z),slope=Math.hypot(terrainHeight(d,x+3,z)-terrainHeight(d,x-3,z),terrainHeight(d,x,z+3)-terrainHeight(d,x,z-3))/6;
   if(h<15||h>d.height*.93||slope>.85||inTakeoffChannel(d,x,z,35)||occupied?.(x,z,13))continue;
-  if((d.id==='harbor'||d.id==='town')&&(z-d.z)*(d.id==='town'?-1:1)>-45&&Math.abs(x-d.x)<d.rx*.72)continue;
+  if(d.id==='harbor'&&rng()>.18+.8*harborGroundCover(z-d.z,d.x-x).grove)continue;
+  if(d.id==='harbor'&&d.x-x>-45&&Math.abs(z-d.z)<d.rx*.72||inTownHarborApproach(d,x,z,d.rz*.18+45))continue;
   i++;const height=10+rng()*10,radius=6+rng()*6,olive=rng()<.28,canopyY=h+height*(olive?.67:.89),tint=new T.Color().setHSL(olive?.235:.255,.16+rng()*.14,olive?.24:.17+rng()*.055);
   b.treeWood.push({p:new T.Vector3(x,h+height*.41,z),s:new T.Vector3(.43+rng()*.3,height*.82,.43+rng()*.3),r:new T.Euler((rng()-.5)*.10,rng()*6.28,(rng()-.5)*.10)});
   for(let lobe=0;lobe<5;lobe++){

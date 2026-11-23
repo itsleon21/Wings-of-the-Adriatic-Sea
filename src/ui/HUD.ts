@@ -10,7 +10,7 @@ import {mooringSites} from '../world/Moorings';
 import type {QualityId} from '../rendering/QualityConfig';
 import {landingAdvice,landingProfile} from '../aircraft/LandingGuidance';
 import {weatherIds,weatherPresets} from '../rendering/WeatherConfig';import type {WeatherId} from '../rendering/WeatherConfig';
-import type {FlightController} from '../aircraft/FlightController';import {allLandforms as islands,WorldBounds,harborRunway,bayProfile,coralIslets,coralReefLinks} from '../world/WorldConfig';import {route,formatTime} from '../missions/MissionManager';import type {MissionManager} from '../missions/MissionManager';
+import type {FlightController} from '../aircraft/FlightController';import {allLandforms as islands,WorldBounds,harborRunway,bayProfile,townPoint,townYaw,covePoint,northShoreOffset,northCoast,coralIslets,coralReefLinks} from '../world/WorldConfig';import {route,formatTime} from '../missions/MissionManager';import type {MissionManager} from '../missions/MissionManager';
 import {cruiseKmh} from '../aircraft/AircraftCatalog';
 import type {AircraftDefinition} from '../aircraft/AircraftCatalog';
 export interface Actions{invertPitch:(enabled:boolean)=>void;time:(id:TimeId)=>void;automaticTime:(enabled:boolean)=>void;camera:()=>void;weather:(id:WeatherId)=>void;automaticWeather:(enabled:boolean)=>void;start:()=>void;pause:()=>void;reset:()=>void;recover:()=>void;challenge:()=>void;sound:()=>void;quality:(id:QualityId)=>void;comfort:(enabled:boolean)=>void;volume:(value:number)=>void}
@@ -39,8 +39,10 @@ export class HUD {
 
   ${guideMarkup(aircraft,takeoff)}
   <div class="pause-layer" id="pause-layer" hidden><div class="pause-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">风景会等你。</h2><p id="pause-description">飞行与挑战计时已暂停。</p><button class="primary" id="resume">继续飞行 <span>→</span></button><button class="primary" id="recover" hidden>重飞 · 保持原航向 ↗</button><button class="text-button" id="reset">返回港口 <kbd>R</kbd></button><a class="text-button pause-hangar" href="./aircraft.html?aircraft=${aircraft.id}">返回机库换机 ↗</a></div></div>
-  <div class="toast" id="toast" role="status"></div>`;
-  const commandbar=document.createElement('nav');commandbar.className='cockpit-commandbar';commandbar.setAttribute('aria-label','飞行操作与环境');commandbar.append(app.querySelector('.deck-shortcuts')!,app.querySelector('.top-actions')!);app.append(commandbar);
+  <div class="toast" id="toast" role="status"></div><div class="flight-notice" id="flight-notice" role="status"></div>`;
+  const commandbar=document.createElement('nav');commandbar.className='cockpit-commandbar';commandbar.setAttribute('aria-label','飞行操作与环境');const notices=document.createElement('div');notices.className='flight-notices';
+  notices.append(app.querySelector('#landing-assist')!,app.querySelector('#flight-notice')!);
+  commandbar.append(app.querySelector('.deck-shortcuts')!,app.querySelector('.top-actions')!,notices);app.append(commandbar);
   for(const element of app.querySelectorAll<HTMLElement>('[id]'))this.refs.set(element.id,element);
   const walker=document.createTreeWalker(this.get('guide'),NodeFilter.SHOW_TEXT);let textNode:Node|null;while((textNode=walker.nextNode()))if(textNode.parentElement?.closest('p,.key-grid kbd')&&/\b[WS]\b/.test(textNode.textContent??''))this.controlTexts.push({node:textNode as Text,original:textNode.textContent!});
   this.get('pitch-invert').addEventListener('change',()=>{actions.invertPitch((this.get('pitch-invert') as HTMLInputElement).checked);this.get('pitch-invert').blur();});
@@ -74,12 +76,12 @@ export class HUD {
  toggleLanding(){const open=this.get('landing-assist').hidden;this.landingMode=open?'open':'closed';this.get('landing-assist').hidden=!open;this.get('landing-toggle').setAttribute('aria-pressed',String(open));}
  resetLanding(){this.landingMode='auto';this.get('landing-assist').hidden=true;this.get('landing-toggle').setAttribute('aria-pressed','false');}
  landing(f:FlightController,water:{overWater:boolean;clearAhead:boolean},started:boolean,taskApproach=false){
-  const contact=f.landingContact,advice=landingAdvice(f.tuning,{...contact,...water,state:f.state,speed:f.airspeed,bank:f.bank,pitch:f.pitch,throttle:f.throttle,landingCount:f.landingCount,rolling:f.rolling||!!f.maneuver});
+  const contact=f.landingContact,advice=landingAdvice(f.tuning,{...contact,...water,state:f.state,speed:f.airspeed,groundSpeed:f.groundSpeed,bank:f.bank,pitch:f.pitch,throttle:f.throttle,landingCount:f.landingCount,rolling:f.rolling||!!f.maneuver});
   const panel=this.get('landing-assist'),visible=started&&(this.landingMode==='open'||this.landingMode==='auto'&&(advice.automatic||taskApproach));panel.hidden=!visible;panel.dataset.tone=advice.tone;panel.dataset.ready=String(advice.ready);this.get('landing-toggle').setAttribute('aria-pressed',String(visible));
   this.get('landing-title').textContent=advice.title;this.get('landing-instruction').textContent=advice.ready?'机翼放平 · 收油 · 轻柔接水':advice.title.includes('偏高')?'Ctrl 收油减速':advice.title.includes('下降过快')?`松开 ${this.pitchDown}，轻点 ${this.pitchUp}；必要时加油复飞`:advice.title.includes('机翼')?'松开 A / D，保持机翼水平':`接水前下降率 ≤ ${landingProfile(f.tuning.id).maxTouchdownSink.toFixed(1)} m/s`;
   const set=(id:string,text:string,good:boolean)=>{this.get(id).textContent=text;this.get(id).dataset.good=String(good);};
   const touching=f.state==='LANDING'||f.state==='ON_WATER'&&f.landingCount>0;
-  set('landing-speed',`当前 ${Math.round(advice.speedKmh)} km/h`,touching||advice.speedGood);this.get('landing-height').textContent=`${advice.height<10?advice.height.toFixed(1):Math.round(advice.height)} m`;
+  set('landing-speed',`当前 ${Math.round(touching?f.groundSpeed*3.6:advice.speedKmh)} km/h`,touching||advice.speedGood);this.get('landing-height').textContent=`${advice.height<10?advice.height.toFixed(1):Math.round(advice.height)} m`;
   set('landing-sink',`${advice.sink>=0?'下降':'爬升'} ${Math.abs(advice.sink).toFixed(1)} m/s`,touching||advice.sinkGood);
   set('landing-bank',advice.bankGood?'✓ 机翼接近水平':'△ 请放平机翼',advice.bankGood);set('landing-water',advice.waterGood?'✓ 前方为水域':'△ 留意岸线 / 障碍',advice.waterGood);
  }
@@ -107,9 +109,16 @@ export class HUD {
  toggleHelp(){const dialog=this.get('guide') as HTMLDialogElement;if(dialog.open)dialog.close();else dialog.showModal();}
  helpOpen(){return (this.get('guide') as HTMLDialogElement).open;}
  sound(muted:boolean){this.get('sound').textContent=muted?'声音 关':'声音 开';}
- toast(message:string){this.get('toast').textContent=message;this.get('toast').classList.add('visible');window.setTimeout(()=>this.get('toast').classList.remove('visible'),3000);}
+ private toastTimer?:number;
+ toast(message:string,duration=3000,atFlightControls=false){
+  const toast=this.get(atFlightControls?'flight-notice':'toast');
+  this.get(atFlightControls?'toast':'flight-notice').classList.remove('visible');
+  window.clearTimeout(this.toastTimer);
+  toast.textContent=message;toast.classList.add('visible');
+  this.toastTimer=window.setTimeout(()=>toast.classList.remove('visible'),duration);
+ }
  rpm(value:number){this.get('rpm').textContent=String(Math.round(value));this.get('rpm-needle').style.setProperty('--angle',instrumentAngle(value,0,2500)+'deg');}
- update(f:FlightController,m:MissionManager,paused:boolean,started:boolean){
+ update(f:FlightController,m:MissionManager,paused:boolean,started:boolean,taskInProgress=false){
   this.get('speed').textContent=String(Math.round(f.airspeed*3.6));this.get('altitude').textContent=String(Math.round(f.altitude));this.get('throttle').innerHTML=`${Math.round(f.throttle*100)}<span>%</span>`;this.get('throttle-bar').style.width=`${f.throttle*100}%`;
   this.get('speed-needle').style.setProperty('--angle',instrumentAngle(f.airspeed*3.6,0,this.maxGaugeSpeed)+'deg');this.get('altitude-needle').style.setProperty('--angle',instrumentAngle(f.altitude,0,2000)+'deg');this.get('climb').textContent=(f.velocity.y>=0?'+':'')+f.velocity.y.toFixed(1);this.get('climb-needle').style.setProperty('--angle',instrumentAngle(f.velocity.y,-20,20)+'deg');
   this.get('state').textContent=f.maneuver?`${f.maneuverName} ${Math.round(f.maneuverProgress*100)}%`:f.rolling?'机动翻滚':names[f.state];const heading=((-f.heading*180/Math.PI)%360+360)%360;this.get('heading').textContent=`${Math.round(heading).toString().padStart(3,'0')}°`;
@@ -126,7 +135,7 @@ export class HUD {
   }else{this.get('mission-title').textContent='自由漫游';this.get('mission-description').textContent='从港湾起飞，游览全部主岛。';challenge.textContent='开始环岛挑战 →';const home=Math.hypot(f.position.x-harborRunway.x,f.position.z-harborRunway.z)<450;challenge.disabled=!home;if(!home)challenge.textContent='返回港口开启环岛挑战';}
   this.get('checkpoint-progress').innerHTML=route.map((_,i)=>`<span class="${i<m.index?'done':i===m.index&&m.state==='RUNNING'?'active':''}"></span>`).join('');
   this.get('pause-layer').hidden=!started||(!paused&&f.state!=='CRASHED');
-  this.get('resume').hidden=f.state==='CRASHED';this.get('recover').hidden=f.state!=='CRASHED';this.get('pause-title').textContent=f.state==='CRASHED'?'重新出发，也很好。':'风景会等你。';this.get('pause-description').textContent=f.state==='CRASHED'?f.crashReason:'飞行与挑战计时已暂停。';
+  this.get('resume').hidden=f.state==='CRASHED';this.get('recover').hidden=f.state!=='CRASHED';this.get('recover').textContent=taskInProgress?'重飞 · 继续任务 ↗':'重飞 · 保持原航向 ↗';this.get('pause-title').textContent=f.state==='CRASHED'?'重新出发，也很好。':'风景会等你。';this.get('pause-description').textContent=f.state==='CRASHED'?f.crashReason+(taskInProgress?' · 重飞后继续当前阶段':''):'飞行与挑战计时已暂停。';
   this.get('hint').innerHTML=f.state==='ON_WATER'||f.state==='TAKEOFF_RUN'?`按住 <kbd>Shift</kbd> 加油门，达到 ${Math.round(f.tuning.takeoffSpeed*3.6)} km/h 后按 <kbd>${this.pitchUp}</kbd> 抬头起飞`:Math.max(Math.abs(f.position.x),Math.abs(f.position.z))>WorldBounds.maxX?'你正在离开主要海域，沿航图返回群岛。':f.maneuver?`${f.maneuverName}进行中 · 可用 Shift / Ctrl 调节油门 · 完成后恢复手动操纵`:f.rolling?'松开 <kbd>空格</kbd> 与方向键，机翼自动回正':'<kbd>W</kbd> <kbd>S</kbd> 俯仰　<kbd>A</kbd> <kbd>D</kbd> 转弯'+(f.tuning.aerobatics?'　<kbd>空格</kbd>＋<kbd>A</kbd>/<kbd>D</kbd> 翻滚'+(f.tuning.id==='mc72'?'　<kbd>X</kbd> 筋斗 / <kbd>Z</kbd> 殷麦曼':''):'　慢速巡航 · 平缓观光');
   const boundary=Math.max(Math.abs(f.position.x),Math.abs(f.position.z))>WorldBounds.maxX;this.get('hint').hidden=!boundary&&!f.maneuver&&!f.rolling&&(f.state==='AIRBORNE'||performance.now()-this.flightStartedAt>14000);
   if(this.mapOpen())this.drawMap(f,m);
@@ -134,7 +143,19 @@ export class HUD {
  private drawMap(f:FlightController,m:MissionManager){
   const c=this.context,w=this.canvas.width,s=w/WorldBounds.size,convert=(x:number,z:number)=>[(x-WorldBounds.minX)*s,(z-WorldBounds.minZ)*s];c.clearRect(0,0,w,w);
   c.strokeStyle='#83998c33';c.lineWidth=1;for(let i=0;i<6;i++){c.beginPath();c.moveTo(i*w/5,0);c.lineTo(i*w/5,w);c.moveTo(0,i*w/5);c.lineTo(w,i*w/5);c.stroke();}
-  for(const d of islands){const [x,y]=convert(d.x,d.z);if(d.id==='coral'){c.strokeStyle='#9bbbaa';c.lineWidth=5;for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b];c.beginPath();c.moveTo(x+p.x*d.rx*s,y+p.z*d.rz*s);c.lineTo(x+q.x*d.rx*s,y+q.z*d.rz*s);c.stroke();}c.fillStyle='#b6b68b';for(const p of coralIslets){c.beginPath();c.ellipse(x+p.x*d.rx*s,y+p.z*d.rz*s,p.rx*d.rx*s,p.rz*d.rz*s,0,0,Math.PI*2);c.fill();}c.fillStyle='#294d4c';c.font='16px "Songti SC",serif';c.textAlign='center';c.fillText(d.name,x,y-25);continue;}c.fillStyle=d.id==='cove'?'#8d9c85':'#b6b68b';c.beginPath();for(let i=0;i<48;i++){const a=i/48*Math.PI*2,t=a+(d.id==='town'?Math.PI:0),r=d.id==='town'?1+.085*Math.sin(t*2+.4)+.04*Math.sin(t*3-1)+.025*Math.cos(t*7):1+.065*Math.sin(t*5+d.seed)+.04*Math.cos(t*9+d.seed);c.lineTo(x+Math.cos(a)*d.rx*s*r,y+Math.sin(a)*d.rz*s*r);}c.closePath();c.fill();if(d.bay){c.save();c.clip();c.globalCompositeOperation='destination-out';c.beginPath();if(d.id==='cove'){c.ellipse(x,y+25*s,174*s,137*s,0,0,Math.PI*2);c.rect(x-23*s,y+100*s,116*s,240*s);}else c.ellipse(x,y+d.rz*bayProfile(d).offset*s*(d.id==='town'?-1:1),d.rx*bayProfile(d).rx*1.05*s,d.rz*bayProfile(d).rz*1.05*s,0,0,Math.PI*2);c.fill();c.restore();}c.fillStyle='#294d4c';c.font='16px "Songti SC",serif';c.textAlign='center';c.fillText(d.name,x,y-4);}
+  for(const d of islands){const [x,y]=convert(d.x,d.z);
+   if(d.id===northCoast.id){
+    const width=WorldBounds.size, west=WorldBounds.minX, east=WorldBounds.maxX;
+    c.fillStyle='#b6b68b';c.beginPath();c.moveTo(0,0);
+    for(let wx=west;wx<=east;wx+=width/500){
+     const [sx,sy]=convert(wx,d.z+northShoreOffset(wx)+8);
+     c.lineTo(sx,Math.max(0,sy));
+    }
+    c.lineTo(w,0);c.closePath();c.fill();
+    c.fillStyle='#294d4c';c.font='16px "Songti SC",serif';c.textAlign='center';c.fillText(d.name,x,15);
+    continue;
+   }
+   if(d.id==='coral'){c.strokeStyle='#9bbbaa';c.lineWidth=5;for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b];c.beginPath();c.moveTo(x+p.x*d.rx*s,y+p.z*d.rz*s);c.lineTo(x+q.x*d.rx*s,y+q.z*d.rz*s);c.stroke();}c.fillStyle='#b6b68b';for(const p of coralIslets){c.beginPath();c.ellipse(x+p.x*d.rx*s,y+p.z*d.rz*s,p.rx*d.rx*s,p.rz*d.rz*s,0,0,Math.PI*2);c.fill();}c.fillStyle='#294d4c';c.font='16px "Songti SC",serif';c.textAlign='center';c.fillText(d.name,x,y-25);continue;}c.fillStyle=d.id==='cove'?'#8d9c85':'#b6b68b';c.beginPath();for(let i=0;i<48;i++){const a=i/48*Math.PI*2,t=a+(d.id==='harbor'?-Math.PI/2:0),r=d.id==='town'?1+.085*Math.sin(t*2+.4)+.04*Math.sin(t*3-1)+.025*Math.cos(t*7):1+.065*Math.sin(t*5+d.seed)+.04*Math.cos(t*9+d.seed);const px=d.x+Math.cos(a)*(d.id==='harbor'||d.id==='hotel'?d.rz:d.rx)*r,pz=d.z+Math.sin(a)*(d.id==='harbor'||d.id==='hotel'?d.rx:d.rz)*r,p=d.id==='town'?townPoint(d,px,pz):d.id==='cove'?covePoint(d,px,pz):{x:px,z:pz};c.lineTo(...convert(p.x,p.z) as [number,number]);}c.closePath();c.fill();if(d.bay){c.save();c.clip();c.globalCompositeOperation='destination-out';c.beginPath();if(d.id==='cove'){c.ellipse(x+25*s,y,137*s,174*s,0,0,Math.PI*2);c.rect(x+100*s,y-93*s,240*s,116*s);}else if(d.id==='harbor')c.ellipse(x-d.rz*bayProfile(d).offset*s,y,d.rz*bayProfile(d).rz*1.05*s,d.rx*bayProfile(d).rx*1.05*s,0,0,Math.PI*2);else{const bay=bayProfile(d),p=townPoint(d,d.x,d.z+d.rz*bay.offset),[bx,by]=convert(p.x,p.z);c.ellipse(bx,by,d.rx*bay.rx*1.05*s,d.rz*bay.rz*1.05*s,-townYaw,0,Math.PI*2);}c.fill();c.restore();}c.fillStyle='#294d4c';c.font='16px "Songti SC",serif';c.textAlign='center';c.fillText(d.name,x,y-4);}
   if(m.state==='RUNNING'){c.strokeStyle='#bc5e3d';c.setLineDash([5,7]);c.beginPath();route.forEach((p,i)=>{const[x,y]=convert(p.position.x,p.position.z);if(i===0)c.moveTo(x,y);else c.lineTo(x,y);});c.stroke();c.setLineDash([]);route.forEach((p,i)=>{const[x,y]=convert(p.position.x,p.position.z);c.fillStyle=i<m.index?'#778e76':i===m.index?'#ba482c':'#e7dcc1';c.beginPath();c.arc(x,y,5,0,Math.PI*2);c.fill();});}
   if(this.raceMap){
    const {points,index}=this.raceMap;

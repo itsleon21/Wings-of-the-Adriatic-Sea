@@ -1,5 +1,17 @@
 import * as T from 'three';
+import {marineWindDirection} from './MarineWind.ts';
 export type VesselKind='ferry'|'fishing'|'sailing';
+const sailRigs=new WeakMap<T.Group,{sheet:T.Group;canvas:T.Object3D[]}>();
+
+export function trimVesselSails(root:T.Group,wind:number,speed:number,dt:number,underway:boolean){
+ const rig=sailRigs.get(root);if(!rig)return;
+ for(const panel of rig.canvas)panel.visible=underway;
+ const yaw=root.rotation.y;
+ const side=(Math.cos(yaw)*marineWindDirection.x-Math.sin(yaw)*marineWindDirection.z)*wind;
+ const aft=(Math.sin(yaw)*marineWindDirection.x+Math.cos(yaw)*marineWindDirection.z)*wind+speed;
+ const target=underway?Math.atan2(side,Math.abs(aft)+.8)*.46:0;
+ rig.sheet.rotation.y=T.MathUtils.lerp(rig.sheet.rotation.y,target,dt>0?1-Math.exp(-dt*2):1);
+}
 /** Closed, flared displacement hull with a pointed bow and transom, rather than a scaled sphere. */
 export function buildVessel(kind:VesselKind,variant:number,lamps:T.Material){
  const root=new T.Group(),sailing=kind==='sailing',ferry=kind==='ferry',length=ferry?10:7,beam=ferry?3.3:2.5;
@@ -17,7 +29,7 @@ export function buildVessel(kind:VesselKind,variant:number,lamps:T.Material){
  // Deck is inset below the gunwale, with individual teak seams.
  const shape=new T.Shape(outline.map(p=>new T.Vector2(p.x,-p.z)));const deck=new T.ShapeGeometry(shape);deck.rotateX(-Math.PI/2);add(deck,wood,0,1.35,0).name='Inset teak deck';
  const line=(points:T.Vector3[],r:number,material:T.Material)=>add(new T.TubeGeometry(new T.CatmullRomCurve3(points),Math.max(2,points.length*2),r,5,false),material);
- const beamBetween=(a:T.Vector3,b:T.Vector3,r:number,m:T.Material)=>{const delta=b.clone().sub(a),o=add(new T.CylinderGeometry(r,r,delta.length(),6),m);o.position.copy(a).add(b).multiplyScalar(.5);o.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());};
+ const beamBetween=(a:T.Vector3,b:T.Vector3,r:number,m:T.Material)=>{const delta=b.clone().sub(a),o=add(new T.CylinderGeometry(r,r,delta.length(),6),m);o.position.copy(a).add(b).multiplyScalar(.5);o.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return o;};
  for(const side of[-1,1]){const edge=Array.from({length:25},(_,i)=>{const t=.03+i/24*.94;return new T.Vector3(side*beamAt(t),yAt(t)+.08,(t*2-1)*length);});line(edge,.095,cream).name='Cream gunwale rubbing strake';for(let i=0;i<edge.length;i+=4){const p=edge[i];beamBetween(p,p.clone().add(new T.Vector3(0,.72,0)),.035,dark);}line(edge.map(p=>p.clone().add(new T.Vector3(0,.72,0))),.035,dark).name='Stanchions and continuous safety rail';}
  for(let z=-length*.65;z<length*.8;z+=.65){const t=(z/length+1)/2,w=beamAt(t)*.85;add(new T.BoxGeometry(w*2,.018,.025),dark,0,1.38,z);}
  for(const z of[-length*.65,length*.72])for(const side of[-1,1]){add(new T.BoxGeometry(.55,.18,.16),dark,side*beam*.55,1.75,z);}
@@ -32,11 +44,17 @@ export function buildVessel(kind:VesselKind,variant:number,lamps:T.Material){
   if(!ferry){for(const z of[4,5.3])add(new T.BoxGeometry(1.5,.8,1),wood,-.5,1.9,z);line([new T.Vector3(1,1.8,3),new T.Vector3(1,4.9,3),new T.Vector3(1,4.9,5.7)],.07,dark);}
  }else{
   add(new T.BoxGeometry(2.9,.9,4.6),cream,0,1.85,1);add(new T.BoxGeometry(2.5,.10,4.1),wood,0,2.36,1);for(const side of[-1,1])for(const z of[.1,1.8])add(new T.BoxGeometry(.04,.33,.6),glass,side*1.47,1.95,z);
-  beamBetween(new T.Vector3(0,1.5,0),new T.Vector3(0,16,0),.095,cream);beamBetween(new T.Vector3(0,2.5,0),new T.Vector3(0,2.5,5.8),.075,wood);
+  beamBetween(new T.Vector3(0,1.5,0),new T.Vector3(0,16,0),.095,cream);
+  const sheet=new T.Group();sheet.name='Mainsail boom pivot';
+  const boom=beamBetween(new T.Vector3(0,2.5,0),new T.Vector3(0,2.5,5.8),.075,wood);
+  root.add(sheet);sheet.add(boom);
+  const canvas:T.Object3D[]=[];
   for(const side of[-1,1]){line([new T.Vector3(side*beam*.8,1.65,1.8),new T.Vector3(0,15.6,0),new T.Vector3(0,1.8,side<0?-length*.85:length*.85)],.018,dark);}
   const cloth=new T.MeshStandardMaterial({color:[0xf0a52e,0xe7dfc5,0xa55743,0x6f99aa,0x78947a,0xd3aa94,0xd1b86b][((variant*5+3)%7+7)%7],roughness:.88,side:T.DoubleSide});
-  for(const side of[-1,1]){const v:number[]=[],f:number[]=[];for(let row=0;row<=12;row++){const t=row/12,y=2.55+t*12.8,width=(1-t)*(side>0?6:4.9);for(let col=0;col<=10;col++){const u=col/10;v.push(Math.sin(u*Math.PI)*Math.sin((1-t)*Math.PI)*.85,y,side*width*u);}}for(let row=0;row<12;row++)for(let col=0;col<10;col++){const a=row*11+col;f.push(a,a+1,a+11,a+1,a+12,a+11);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setIndex(f);geo.computeVertexNormals();add(geo,cloth).name='Coloured canvas sail';
-  const seams=new T.LineSegments(new T.EdgesGeometry(geo,65),new T.LineBasicMaterial({color:0x857d6d}));root.add(seams);}
+  for(const side of[-1,1]){const v:number[]=[],f:number[]=[];for(let row=0;row<=12;row++){const t=row/12,y=2.55+t*12.8,width=(1-t)*(side>0?6:4.9);for(let col=0;col<=10;col++){const u=col/10;v.push(Math.sin(u*Math.PI)*Math.sin((1-t)*Math.PI)*.85,y,side*width*u);}}for(let row=0;row<12;row++)for(let col=0;col<10;col++){const a=row*11+col;f.push(a,a+1,a+11,a+1,a+12,a+11);}const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setIndex(f);geo.computeVertexNormals();const sail=add(geo,cloth);sail.name='Coloured canvas sail';
+  const seams=new T.LineSegments(new T.EdgesGeometry(geo,65),new T.LineBasicMaterial({color:0x857d6d}));
+  (side>0?sheet:root).add(sail,seams);canvas.push(sail,seams);}
+  sailRigs.set(root,{sheet,canvas});
  }
  for(const side of[-1,1])add(new T.SphereGeometry(.13,6,4),new T.MeshBasicMaterial({color:side<0?0xc73b24:0x54a66b}),side*beam*.8,3.4,0);
  add(new T.BoxGeometry(.8,.4,.05),lamps,0,sailing?2.1:3,-1.72);

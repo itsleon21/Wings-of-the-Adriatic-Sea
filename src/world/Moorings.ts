@@ -1,16 +1,25 @@
+import {harborPoint,townPoint,townDirection,townYaw,covePoint} from './WorldConfig.ts';
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {islands,hotelIsland,hotelScale,hotelWidthScale,terrainHeight,bayProfile} from './WorldConfig.ts';
+import {islands,hotelPoint,hotelScale,hotelWidthScale,terrainHeight,bayProfile} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {inTakeoffChannel} from './IslandDetails.ts';
 export interface MooringSite{id:string;name:string;x:number;z:number;shoreX:number;shoreZ:number;dx:number;dz:number;length:number;berth:T.Vector3;heading:number}
 export function findMooring(d:IslandDefinition):MooringSite{
- if(d.id==='town'&&!d.canonical){const p=findMooring({...d,canonical:true});return{...p,x:2*d.x-p.x,z:2*d.z-p.z,shoreX:2*d.x-p.shoreX,shoreZ:2*d.z-p.shoreZ,dx:-p.dx,dz:-p.dz,berth:new T.Vector3(2*d.x-p.berth.x,p.berth.y,2*d.z-p.berth.z),heading:p.heading+Math.PI};}
+ if(d.id==='town'&&!d.canonical){const p=findMooring({...d,canonical:true}),shore=townPoint(d,p.shoreX,p.shoreZ),berth=townPoint(d,p.berth.x,p.berth.z),out=townDirection(p.dx,p.dz);return{...p,...townPoint(d,p.x,p.z),shoreX:shore.x,shoreZ:shore.z,dx:out.x,dz:out.z,berth:new T.Vector3(berth.x,p.berth.y,berth.z),heading:p.heading+townYaw};}
+ if(d.id==='harbor'&&!d.canonical){
+  const p=findMooring({...d,canonical:true}),shore=harborPoint(d,p.shoreX,p.shoreZ),berth=harborPoint(d,p.berth.x,p.berth.z);
+  return{...p,...harborPoint(d,p.x,p.z),shoreX:shore.x,shoreZ:shore.z,dx:-p.dz,dz:p.dx,berth:new T.Vector3(berth.x,0,berth.z),heading:p.heading-Math.PI/2};
+ }
+ if(d.id==='cove'&&!d.canonical){
+  const p=findMooring({...d,canonical:true}),shore=covePoint(d,p.shoreX,p.shoreZ),berth=covePoint(d,p.berth.x,p.berth.z);
+  return{...p,...covePoint(d,p.x,p.z),shoreX:shore.x,shoreZ:shore.z,dx:p.dz,dz:-p.dx,berth:new T.Vector3(berth.x,0,berth.z),heading:p.heading+Math.PI/2};
+ }
  const bay=d.id==='harbor'||d.id==='town'||d.id==='cove',cx=d.x,cz=d.z+(d.id==='cove'?25:bay?d.rz*bayProfile(d).offset:0);
  for(let attempt=0;attempt<64;attempt++){
-  const a=bay?-2.6+attempt/64*1.9:Math.PI*.25+attempt/64*Math.PI*2,dx=Math.cos(a),dz=Math.sin(a);let r=bay?20:Math.max(d.rx,d.rz)*1.35,land=bay?0:1;
+  const a=bay?-2.6+attempt/64*1.9:d.id==='coral'?-2.12+attempt/64*.95:Math.PI*.25+attempt/64*Math.PI*2,dx=Math.cos(a),dz=Math.sin(a);let r=bay?20:Math.max(d.rx,d.rz)*1.35,land=bay?0:1;
   for(let j=0;j<600;j++,r+=bay?1.5:-1.5){const h=terrainHeight(d,cx+dx*r,cz+dz*r);if((bay&&h>1.8)||(!bay&&h>1.8)){land=r;break;}}
-  if(land<=1)continue;const outward=bay?-1:1,nx=dx*outward,nz=dz*outward,sx=cx+dx*land,sz=cz+dz*land;
+  if(land<=1)continue;const outward=bay?-1:1,nx=d.id==='town'||d.id==='coral'?0:dx*outward,nz=d.id==='coral'?-1:d.id==='town'?1:dz*outward,sx=cx+dx*land,sz=cz+dz*land;
   const h=terrainHeight(d,sx,sz);if(h>7||inTakeoffChannel(d,sx,sz,50))continue;
   let length=65;if(d.id==='coral'){while(length<155&&terrainHeight(d,sx+nx*(length-8)+nz*24,sz+nz*(length-8)-nx*24)>-4)length+=15;}else if(!bay){while(length<245){const bx=sx+nx*(length-8)+nz*24,bz=sz+nz*(length-8)-nx*24;if(Math.hypot((bx-d.x)/d.rx,(bz-d.z)/d.rz)>1.40)break;length+=15;}}const x=sx+nx*length,z=sz+nz*length,bx=x+nz*24-nx*8,bz=z-nx*24-nz*8;
   if(terrainHeight(d,x,z)>-4||terrainHeight(d,bx,bz)>-4)continue;
@@ -18,12 +27,25 @@ export function findMooring(d:IslandDefinition):MooringSite{
   return{id:d.id,name:d.name+'栈桥',x,z,shoreX:sx,shoreZ:sz,dx:nx,dz:nz,length,berth:new T.Vector3(bx,0,bz),heading:Math.atan2(-nx,-nz)};
  }throw new Error(`未找到安全栈桥岸线: ${d.name}`);
 }
-export const mooringSites=[...islands.map(findMooring),{id:'hotel',name:'花园酒店岛栈桥',shoreX:hotelIsland.x-85*hotelScale*hotelWidthScale,shoreZ:hotelIsland.z+189*hotelScale,x:hotelIsland.x-85*hotelScale*hotelWidthScale,z:hotelIsland.z+189*hotelScale+60,dx:0,dz:1,length:60,berth:new T.Vector3(hotelIsland.x-85*hotelScale*hotelWidthScale+24,0,hotelIsland.z+189*hotelScale+52),heading:Math.PI}];
+const hotelJettyX=-85*hotelWidthScale,hotelJettyZ=189;
+const hotelShore=hotelPoint(hotelJettyX,hotelJettyZ);
+const hotelBerth=hotelPoint(hotelJettyX+24/hotelScale,hotelJettyZ+52/hotelScale);
+export const mooringSites=[...islands.map(findMooring),{
+ id:'hotel',name:'花园酒店岛栈桥',shoreX:hotelShore.x,shoreZ:hotelShore.z,
+ x:hotelShore.x+60,z:hotelShore.z,dx:1,dz:0,length:60,
+ berth:new T.Vector3(hotelBerth.x,0,hotelBerth.z),heading:Math.PI/2,
+}];
 export function inCoralJettyClearance(x:number,z:number){
  const site=mooringSites.find(m=>m.id==='coral')!;
  const dx=x-site.shoreX,dz=z-site.shoreZ;
  const along=dx*site.dx+dz*site.dz,across=dx*site.dz-dz*site.dx;
  return along> -55&&along<site.length+300&&Math.abs(across)<140;
+}
+/** A broader reef-free fan preserves room to approach the north jetty from either side. */
+export function inCoralReefApproach(x:number,z:number){
+ const jetty=mooringSites.find(m=>m.id==='coral')!;
+ const along=jetty.shoreZ-z,across=Math.abs(x-jetty.shoreX);
+ return along> -28&&along<jetty.length+336&&across<154+Math.max(0,along)*.20;
 }
 export class Moorings{
  readonly root=new T.Group();private lamps:T.MeshStandardMaterial;

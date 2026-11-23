@@ -1,5 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {FlightController,neutralInput} from '../src/aircraft/FlightController.ts';import {FlightConfig,M5FlightConfig} from '../src/aircraft/FlightConfig.ts';
+import {FlightController,neutralInput} from '../src/aircraft/FlightController.ts';import {FlightConfig,M5FlightConfig,MC72FlightConfig} from '../src/aircraft/FlightConfig.ts';
+import {Vector3} from 'three';
 import {hullWaterContact} from '../src/aircraft/WaterContact.ts';import {sampleOceanWaves} from '../src/world/OceanWaves.ts';
 const field=(x:number,z:number,t:number)=>sampleOceanWaves(x,z,t,.48);
 test('hull and floats sample spatially distinct waves and recover exact planar pitch/bank',()=>{
@@ -19,4 +20,30 @@ test('landing safety uses vertical speed relative to the moving wave',()=>{
 });
 test('wave-coupled fixed-step physics remains identical at 30,60,120 render FPS',()=>{
  const run=(fps:number)=>{const f=new FlightController();f.setWaterSurface(field);let accumulator=0;for(let frame=0;frame<fps*12;frame++){accumulator+=1/fps;while(accumulator+1e-10>=1/60){f.update(1/60,{pitch:1,roll:0,yaw:0,throttle:1});accumulator-=1/60;}}return f;};const base=run(60);for(const fps of[30,120]){const f=run(fps);assert.ok(base.position.distanceTo(f.position)<1e-7);assert.ok(base.orientation.angleTo(f.orientation)<1e-6);}
+});
+
+test('crosswind changes ground track without adding airspeed or pushing a moored aircraft',()=>{
+ const calm=new FlightController(true),crosswind=new FlightController(true);
+ const origin=new Vector3(0,90,0);
+ crosswind.setWind(4,0);
+ for(const flight of [calm,crosswind])flight.recoverAt(origin,0);
+ for(let i=0;i<120;i++){calm.update(1/60,neutralInput());crosswind.update(1/60,neutralInput());}
+ assert.ok(Math.abs(crosswind.airspeed-calm.airspeed)<1e-8);
+ assert.ok(Math.abs(crosswind.position.x-calm.position.x-8)<1e-8);
+ assert.notEqual(crosswind.groundTrack,crosswind.heading);
+ crosswind.moorAt(0,0,0);crosswind.update(1/60,neutralInput());
+ assert.equal(crosswind.groundSpeed,0);
+});
+
+test('a wave under the starboard float registers starboard-first touchdown with local wave velocity',()=>{
+ const flight=new FlightController(true,MC72FlightConfig);
+ flight.setWaterSurface(x=>({height:x>.6?.32:0,dx:0,dz:0,velocity:x>.6?.45:0}));
+ flight.recoverAt(new Vector3(0,MC72FlightConfig.hullOffset+.321,0),0);
+ flight.velocity.set(0,-1.5,-44);flight.throttle=0;
+ flight.update(1/60,neutralInput());
+ assert.equal(flight.state,'LANDING');
+ assert.equal(flight.lastTouchdown?.side,1);
+ assert.ok(flight.lastTouchdown!.sink>1.8);
+ assert.ok(flight.lastTouchdown!.x>.6);
+ assert.equal(flight.floatLoadLeft,0);assert.equal(flight.floatLoadRight,1);
 });

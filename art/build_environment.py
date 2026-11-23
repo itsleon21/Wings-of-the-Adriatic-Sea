@@ -11,11 +11,18 @@ def group(name,x):
  o=bpy.data.objects.new(name,None);scene.collection.objects.link(o);o.location.x=x;return o
 def finish(o,name,m,parent):
  o.name=name;o.parent=parent;o.data.materials.append(m);return o
+cube_source=bpy.data.meshes.new('Shared unit cube source')
+cube_source.from_pydata([(-.5,-.5,-.5),(.5,-.5,-.5),(.5,.5,-.5),(-.5,.5,-.5),(-.5,-.5,.5),(.5,-.5,.5),(.5,.5,.5),(-.5,.5,.5)],[],[(0,3,2,1),(4,5,6,7),(0,1,5,4),(3,7,6,2),(0,4,7,3),(1,2,6,5)])
+cube_source.update()
 def box(name,p,s,m,parent,bevel=0):
- bpy.ops.mesh.primitive_cube_add(size=1,location=p);o=bpy.context.object;o.scale=s;finish(o,name,m,parent)
+ # Direct datablock creation avoids rebuilding the entire dependency graph for
+ # every small sill, tile and rafter during offline generation.
+ data=cube_source.copy();o=bpy.data.objects.new(name,data);scene.collection.objects.link(o);o.location=p;o.scale=s;finish(o,name,m,parent)
  if bevel:
-  bpy.ops.object.transform_apply(location=False,rotation=False,scale=True);a=o.modifiers.new('Soft worn corners','BEVEL');a.width=bevel;a.segments=1
+  for vertex in data.vertices:vertex.co=Vector((vertex.co.x*s[0],vertex.co.y*s[1],vertex.co.z*s[2]))
+  o.scale=(1,1,1);a=o.modifiers.new('Soft worn corners','BEVEL');a.width=bevel;a.segments=1
  return o
+
 def mesh(name,v,f,m,parent):
  data=bpy.data.meshes.new(name);data.from_pydata(v,[],f);data.update();o=bpy.data.objects.new(name,data);scene.collection.objects.link(o);return finish(o,name,m,parent)
 def cylinder(name,p,r,depth,m,parent,vertices=12):
@@ -87,13 +94,18 @@ def wallblock(g,x,z,w,d,top,m):
     length=.074 if i%2 else .11
     box('Dressed corner stone',(x+side*(w-length)*.5,-.38+i*(top+.31)/5,z+d*.5),(length,.072,.031),chalk,g)
 
+window_openings=[]
 def window(g,x,y,z,w=.18,h=.23,shutters=True):
- box('Limestone window surround',(x,y,z),(w+.043,h+.04,.018),ivory,g)
- box('Deep shaded window',(x,y,z+.011),(w,h,.012),dark,g)
- box('Window mullion',(x,y,z+.021),(.013,h,.012),wood,g)
- box('Window transom',(x,y+h*.12,z+.026),(w,.012,.012),wood,g)
+ window_openings.append((g,x,y,z,w,h))
+ for side in [-1,1]:
+  box('Solid window jamb',(x+side*(w/2+.010),y,z-.022),(.020,h+.04,.075),ivory,g)
+ for edge in [-1,1]:
+  box('Window head and sill reveal',(x,y+edge*(h/2+.010),z-.022),(w,.020,.075),ivory,g)
+ box('Deep shaded window',(x,y,z-.054),(w,h,.008),dark,g)
+ box('Window mullion',(x,y,z-.030),(.013,h,.012),wood,g)
+ box('Window transom',(x,y+h*.12,z-.027),(w,.012,.012),wood,g)
  pane=material_cache_glass
- box('Subtle reflected sky in window',(x,y,z+.020),(w*.94,h*.94,.004),pane,g)
+ box('Subtle reflected sky in window',(x,y,z-.041),(w*.94,h*.94,.004),pane,g)
 
  if shutters:
   for side in[-1,1]:
@@ -113,7 +125,15 @@ def gable(g,x,z,w,d,eave=.5,ridge=.87,axis='z',m=roof,offset=0):
  # A ridge shifted from the center breaks the perfect repeated roof silhouette.
  def p(xx,yy,zz):return(x+xx,yy,z+zz) if axis=='z' else(x+zz,yy,z+xx)
  v=[p(-w/2,eave,-d/2),p(w/2,eave,-d/2),p(offset,ridge,-d/2),p(-w/2,eave,d/2),p(w/2,eave,d/2),p(offset,ridge,d/2)]
- mesh('Uneven clay gabled roof',v,[(0,1,2),(3,5,4),(0,2,5,3),(1,4,5,2)],m,g)
+ # A closed roof shell gives the eaves a visible underside and real thickness.
+ v += [p(-w/2,eave-.018,-d/2),p(w/2,eave-.018,-d/2),p(-w/2,eave-.018,d/2),p(w/2,eave-.018,d/2)]
+ faces=[(6,7,1,2,0),(8,3,5,4,9),(0,2,5,3),(1,4,5,2),(6,8,9,7),(6,0,3,8),(7,9,4,1)]
+ mesh('Solid clay roof and eave returns',v,faces,m,g)
+ for side in [-1,1]:
+  beam=box('Continuous timber eave',p(side*w/2,eave-.024,0),(.022,.027,d) if axis=='z' else (d,.027,.022),wood,g)
+  for i in range(8):
+   zz=-d*.44+i*d*.88/7
+   box('Exposed rafter end',p(side*(w/2-.028),eave-.041,zz),(.072,.025,.020) if axis=='z' else (.020,.025,.072),wood,g)
  for side in[-1,1]:
   reach=w/2-side*offset
   for row in range(1,6):
@@ -316,6 +336,26 @@ for x in[-.40,-.13,.14,.41]:arch(g,x,-.40,.48,.22,.65)
 box('Market hall entablature',(0,.28,.48),(1.16,.09,.10),ivory,g);hip(g,0,0,1.23,1.14,.34,.74,m=rooflight)
 for x in[-.48,.48]:box('Market hall masonry side',(x,-.10,.07),(.07,.70,.76),sand,g)
 for x in[-.34,0,.34]:window(g,x,-.04,-.09,.15,.25,False)
+# Cut shallow real openings in the host masonry before cavity baking. Each host
+# receives one joined cutter batch. Reveal jambs and recessed glass stay separate.
+bpy.context.view_layer.update()
+host_cuts={}
+for g,x,y,z,w,h in window_openings:
+ for host in g.children_recursive:
+  if host.type!='MESH' or not any(token in host.name for token in ['Plastered masonry','Upper loggia frontage','Dormer cheek']):continue
+  corners=[host.matrix_local @ Vector(corner) for corner in host.bound_box]
+  lo=[min(v[k] for v in corners) for k in range(3)];hi=[max(v[k] for v in corners) for k in range(3)]
+  if lo[0]<x-w*.45 and hi[0]>x+w*.45 and lo[1]<y-h*.40 and hi[1]>y+h*.40 and abs(hi[2]-z)<.045:
+   cut=box('Temporary window cutter',(x,y,z-.026),(w,h,.15),dark,g)
+   host_cuts.setdefault(host,[]).append(cut);break
+for host,cutters in host_cuts.items():
+ bpy.ops.object.select_all(action='DESELECT')
+ for cutter in cutters:cutter.select_set(True)
+ bpy.context.view_layer.objects.active=cutters[0];bpy.ops.object.join();cutter=bpy.context.object
+ bpy.context.view_layer.objects.active=host
+ mod=host.modifiers.new('Real recessed window openings','BOOLEAN');mod.operation='DIFFERENCE';mod.solver='EXACT';mod.object=cutter
+ bpy.ops.object.modifier_apply(modifier=mod.name);bpy.data.objects.remove(cutter,do_unlink=True)
+print('ARCHITECTURE_WINDOW_HOSTS',len(host_cuts),flush=True)
 # Consistent outward face normals on the newly built architectural shells.
 for module_name in ['HouseFisher','HouseTownhouse','HouseArcade','HouseVilla','HouseWorkshop','HouseTerrace','HouseLoggia','HousePalazzo','HouseBoatyard','HouseMill','HouseMillTall','HouseMillSquare','HouseGranary','HouseMarketHall']:
  for obj in bpy.data.objects[module_name].children_recursive:

@@ -1,13 +1,32 @@
+import {pirateBoatStop,pirateDeparture,pirateWreck} from './AirPirate.ts';
+import {coralFireSite} from '../world/CoralBonfire.ts';
 import {allLandforms} from '../world/WorldConfig.ts';
 import {mooringSites} from '../world/Moorings.ts';
 import type {AviationJob} from './AircraftJobs.ts';
-export interface StoryStep{kind:'takeoff'|'flyover'|'dock'|'rescue';island:string;title:string;message:string;altitude?:number;maxKmh?:number;minKmh?:number;photoSeconds?:number}
+export interface StoryStep{kind:'takeoff'|'flyover'|'dock'|'rescue'|'crew';island:string;title:string;message:string;altitude?:number;maxKmh?:number;minKmh?:number;photoSeconds?:number;target?:{x:number;y:number;z:number};radius?:number;requiresBonfire?:boolean;brief?:string}
 export interface StoryJob extends AviationJob{arc:string;chapter:number;previous?:string;steps:StoryStep[]}
 const depart=(island:string,message:string):StoryStep=>({kind:'takeoff',island,title:'解缆起飞',message});
 const fly=(island:string,title:string,message:string,altitude=150,maxKmh?:number,minKmh?:number):StoryStep=>({kind:'flyover',island,title,message,altitude,maxKmh,minKmh});
 const dock=(island:string,title:string,message:string):StoryStep=>({kind:'dock',island,title,message});
+export const airPirateJobId='vanished-air-pirate';
+export const airPirateLetter='旧信：我会回隐秘岛熄掉篝火。要是我没回来，把邮袋交给小镇，别让他们忘记那些已经签收的人。';
 export const storyJobs:StoryJob[]=[
- {id:'secret',arc:'潮汐里的旧航图',chapter:1,from:'cove',to:'town',title:'隐藏委托 · 潮汐里的旧航图',detail:'营地桌上的旧日志记载了一条失落航线。靠泊隐湾后起飞，确认松林和灯塔两处地标，再把航图交给小镇的航海档案员。',steps:[depart('cove','营地的旧日志：循着松林，再寻找守灯人的信号。'),fly('pine','确认日志里的松林岬角','航图上的第一处地标与眼前的海岸吻合。',160),fly('lighthouse','核对守灯人的方位','守灯人：这张航图属于一位老邮航员，请交给小镇保存。',140),dock('town','归还旧航图','档案员收下日志：谢谢你让这段海上往事重新被人记住。')]},
+ {id:airPirateJobId,arc:'消失的空贼',chapter:1,from:'cove',to:'town',title:'隐藏委托 · 消失的空贼',
+  detail:'十七年前，报纸上的「空贼」在雾夜失踪。一张未寄出的药品运单将两座岛的篝火连在一起。',
+  steps:[
+   {...depart('cove','旧飞行日志：这里的火留给返航的人。到珊瑚群岛等第二堆火，蓝帆船会在火光外侧等你。'),brief:'从营地篝火旁的栈桥解缆起飞。桌上的日志说，珊瑚群岛还有第二堆火。'},
+   {...fly('coral','找到第二堆篝火','珊瑚群岛的篝火亮了。浅滩外出现一艘蓝帆船，船尾挂着两盏灯。',115),
+    target:{x:coralFireSite.x,y:115,z:coralFireSite.z},requiresBonfire:true,radius:460,brief:'傍晚飞过珊瑚群岛，确认沙滩篝火。可从航行手册等到傍晚。'},
+   {kind:'crew',island:'coral',title:'着水向蓝帆船员打听',target:pirateBoatStop,
+    brief:'沿引导在浅滩外着水，滑行到船侧标记。速度降至 5 km/h 以下，按 F 交谈。',
+    message:'船员递来半张药品运单：药本来就该送去疫区。珊瑚岛那晚点火报平安，他还要把最后一袋药送往北边。返航时，隐秘岛留着一堆火。'},
+   {...depart('coral','飞机重新离水。船员在身后喊：退潮时，隐秘岛的海蚀拱门外能看见旧浮筒。'),
+    title:'离船后重新起飞',target:pirateDeparture,brief:'向南滑离渔船，在开阔海面加速起飞。'},
+   {...fly('cove','辨认拱门外的旧浮筒','旧浮筒证明飞行员曾抵达湾口。浮筒旁有一条通往栈桥的旧绳索。',85),
+    target:{x:pirateWreck.x,y:85,z:pirateWreck.z},radius:190,brief:'从海蚀拱门外侧低空搜索旧浮筒。'},
+   {...dock('cove','靠泊后取回邮袋','你在栈桥旁取回密封邮袋。里面是药品签收单和一封未寄出的信。'),brief:'沿降落引导入湾着水，再按 F 靠泊取回邮袋。'},
+   {...dock('town','交付迟到的签收单','档案员核实药品已经送达，并把旧航线和最后一封信归档。'+airPirateLetter),brief:'将邮袋送到风车小镇栈桥。'},
+  ]},
  {id:'story-rw-1',aircraft:'redwing',arc:'海上的来信',chapter:1,from:'harbor',to:'lighthouse',title:'海上的来信 · 第一章：迟到的补给',detail:'基地收到守灯人的电报：备用灯芯尚未送达，巡航渔船也失去了联络。把补给送到灯塔，并核实外海的情况。',steps:[depart('harbor','港务员：先把灯芯送过去。别忘了，栈桥外再加大油门。'),fly('pine','巡护站转报','巡护站确认：渔船最后向灯塔方向航行。'),fly('lighthouse','灯塔外海辨认','守灯人：我看见你的红色机翼了，沿外海进入。',130),dock('lighthouse','交付备用灯芯','守灯人收下补给，却指向外海一艘没有移动的船。')]},
  {id:'story-rw-2',aircraft:'redwing',arc:'海上的来信',chapter:2,previous:'story-rw-1',from:'lighthouse',to:'pine',title:'海上的来信 · 第二章：静默的渔船',detail:'守灯人请求你接回故障渔船上的船员。先侦察海面，着水接人，再把船员送往松林巡护站。',steps:[depart('lighthouse','守灯人：船上有人，不必冒险贴近岩岸。'),fly('lighthouse','确认搜救海域','渔船就在灯塔外海。先减速，挑选安全的着水方向。',110),{kind:'rescue',island:'lighthouse',title:'着水接回船员',message:'在求救船35米内、速度≤2km/h，保持静止5秒。'},fly('pine','护送巡护站','船员：谢谢你。巡护站的医药箱和热茶都在等着我们。',140),dock('pine','船员安全上岸','巡护员安顿好船员，托你把一封报平安的信带回基地。')]},
  {id:'story-rw-3',aircraft:'redwing',arc:'海上的来信',chapter:3,previous:'story-rw-2',from:'pine',to:'harbor',title:'海上的来信 · 第三章：平安回信',detail:'带着船员的回信，经过海湾与小镇，回到基地完成这一段海上救援故事。',steps:[depart('pine','巡护员：告诉他们，今晚人人都能回家。'),fly('cove','隐湾海岸巡查','隐湾的营地没有异常，继续沿岸飞行。',150),fly('town','小镇报平安','小镇收到你的报平安信号，家属已在港口等待。',160),dock('harbor','交付回信','港务员把回信交给家属。灯塔今晚也会准时亮起。')]},
@@ -19,4 +38,4 @@ export const storyJobs:StoryJob[]=[
  {id:'story-mc-3',aircraft:'mc72',arc:'向海风要速度',chapter:3,previous:'story-mc-2',from:'lighthouse',to:'coral',title:'向海风要速度 · 第三章：起跑线之前',detail:'完成最后一次高度转换与加速检查，返回珊瑚岛领取参赛许可。随后可继续参加施耐德纪念赛。',steps:[depart('lighthouse','守灯人：飞得快，也要记得平安回来。'),fly('pine','高空航段','无线电：爬升到320米，保持平稳。',320),fly('coral','返航冲刺','裁判：最后一个高速检查，至少300km/h。',170,undefined,300),dock('coral','领取参赛许可','赛务员：欢迎来到起跑线。施耐德纪念赛随时为你开放。')]}
 ];
 export const storyJob=(id:string)=>storyJobs.find(j=>j.id===id);
-export function storyStepTarget(step:StoryStep){if(step.kind==='dock'||step.kind==='takeoff'){const site=mooringSites.find(s=>s.id===step.island)!;return{name:step.title,position:site.berth.clone()};}const d=allLandforms.find(d=>d.id===step.island)!;return{name:step.title,position:{x:d.x+d.rx+350,y:step.altitude??120,z:d.z}};}
+export function storyStepTarget(step:StoryStep){if(step.target)return{name:step.title,position:step.target};if(step.kind==='dock'||step.kind==='takeoff'){const site=mooringSites.find(s=>s.id===step.island)!;return{name:step.title,position:site.berth.clone()};}const d=allLandforms.find(d=>d.id===step.island)!;return{name:step.title,position:{x:d.x+d.rx+350,y:step.altitude??120,z:d.z}};}

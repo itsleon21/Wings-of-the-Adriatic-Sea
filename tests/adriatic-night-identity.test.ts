@@ -1,13 +1,16 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import * as T from 'three';
 import {coastalLandmarkSites} from '../src/world/CoastalLandmarkSites.ts';import {CoastalLandmarks} from '../src/world/CoastalLandmarks.ts';
 import {buildSettlementLayout,houseKinds} from '../src/world/SettlementLayout.ts';import {SettlementRenderer} from '../src/world/SettlementRenderer.ts';
-import {islands,hotelScale,hotelWidthScale,hotelElevation} from '../src/world/WorldConfig.ts';import {IslandSurface} from '../src/rendering/IslandSurface.ts';
+import {islands,hotelScale,hotelWidthScale,hotelElevation,hotelPoint,townPoint} from '../src/world/WorldConfig.ts';import {IslandSurface} from '../src/rendering/IslandSurface.ts';
 import {TownHarborLights} from '../src/world/TownHarborLights.ts';import {createSettlementLightMap} from '../src/rendering/SettlementLightMap.ts';
 import {createNightStars} from '../src/rendering/NightSky.ts';import {GardenHotel} from '../src/world/GardenHotel.ts';
 
-test('all working windmill shafts face NE and six structural families share the same wind direction',()=>{
- const sites=coastalLandmarkSites.filter(s=>s.kind==='windmill');assert.equal(new Set(sites.map(s=>s.style)).size,6);for(const s of sites)assert.ok(Math.abs(s.angle-Math.PI*3/4)<1e-8);
- const model=new CoastalLandmarks([]),sails:T.InstancedMesh[]=[];model.root.traverse(o=>{if(o instanceof T.InstancedMesh&&o.name.startsWith('Coastal mills / rotating canvas sails'))sails.push(o);});assert.equal(sails.reduce((n,s)=>n+s.count,0),9);model.update(38,.4,()=>({height:0,dx:0,dz:0}));const m=new T.Matrix4();for(const mesh of sails)for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,m);const axis=new T.Vector3(0,0,1).transformDirection(m);assert.ok(axis.distanceTo(new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2))<1e-6);}
+test('town landmark rotors face obliquely into the basin and the base retains its heading',()=>{
+ const sites=coastalLandmarkSites.filter(s=>s.kind==='windmill');assert.equal(new Set(sites.map(s=>s.style)).size,6);for(const s of sites){
+  const d=islands[1],bay=townPoint(d,d.x,d.z+.79*d.rz),expected=s.island==='town'?Math.atan2(bay.x-s.x,bay.z-s.z)+Math.PI/9:Math.PI*3/4;
+  assert.ok(Math.abs(s.angle-expected)<1e-8);
+ }
+ const model=new CoastalLandmarks([]),sails:T.InstancedMesh[]=[];model.root.traverse(o=>{if(o instanceof T.InstancedMesh&&o.name.startsWith('Coastal mills / rotating canvas sails'))sails.push(o);});assert.equal(sails.reduce((n,s)=>n+s.count,0),9);model.update(38,.4,()=>({height:0,dx:0,dz:0}));const m=new T.Matrix4();for(const mesh of sails)for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,m);const axis=new T.Vector3(0,0,1).transformDirection(m);const site=sites.reduce((a,b)=>Math.hypot(a.x-m.elements[12],a.z-m.elements[14])<Math.hypot(b.x-m.elements[12],b.z-m.elements[14])?a:b);assert.ok(axis.distanceTo(new T.Vector3(Math.sin(site.angle),0,Math.cos(site.angle)))<1e-6);}
 });
 test('land and harbour markets have real halls and granaries, while mill-house families remain varied',()=>{
  const d=islands[1],layout=buildSettlementLayout(d),markets=layout.plazas.filter(p=>p.market);assert.equal(markets.length,3);
@@ -34,7 +37,7 @@ test('night sky has a magnitude hierarchy, constellation landmarks, an inward vi
 test('Italian hotel details stay connected to existing garden and jetty without resizing its main architecture',()=>{
  const blockers:T.Box3[]=[],hotel=new GardenHotel(blockers);hotel.root.updateMatrixWorld(true);
  const flag=hotel.root.getObjectByName('Hotel / Italian tricolour at jetty') as T.Mesh,paving=hotel.root.getObjectByName('Hotel / vine pergola garden paving') as T.Mesh;assert.ok(flag&&paving);
- const b=new T.Box3().setFromObject(flag),size=b.getSize(new T.Vector3());assert.ok(Math.abs(size.x/size.y-1.5)<.02);assert.ok(b.min.y>0);
- const p=new T.Box3().setFromObject(paving);assert.ok(Math.abs(p.max.y-hotelElevation(27.525)*hotelScale)<.001);assert.ok(blockers.some(b=>b.containsPoint(new T.Vector3(hotel.root.position.x+46*hotelWidthScale*hotelScale,hotelElevation(31)*hotelScale,hotel.root.position.z-49*hotelScale))));
+ const b=new T.Box3().setFromObject(flag),size=b.getSize(new T.Vector3());assert.ok(Math.abs(size.z/size.y-1.5)<.02);assert.ok(b.min.y>0);
+ const p=new T.Box3().setFromObject(paving);assert.ok(Math.abs(p.max.y-hotelElevation(27.525)*hotelScale)<.001);const foundation=hotelPoint(46*hotelWidthScale,-49);assert.ok(blockers.some(b=>b.containsPoint(new T.Vector3(foundation.x,hotelElevation(31)*hotelScale,foundation.z))));
  assert.ok(hotel.root.getObjectByName('Hotel continuous tower shaft'));assert.equal(hotel.root.scale.x,hotelScale);
 });

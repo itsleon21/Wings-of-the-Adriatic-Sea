@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
-import {coveCave,coveLandHeight,coveRoofBottom,random} from './WorldConfig.ts';
+import {coveCave,covePoint,coveLocal,coveLandHeight,coveRoofBottom,random} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 const archShift=(z:number)=>Math.sin(z*.057)*7+Math.cos(z*.023)*12;
 const archFront=(z:number)=>coveCave.minX+archShift(z)+9*Math.sin(z*.119);
@@ -8,14 +8,15 @@ const archBack=(z:number)=>coveCave.maxX+archShift(z)+12*Math.cos(z*.083);
 /** A closed rock volume spanning the cut in the height field, including its underside. */
 export function coveRoofTop(d:IslandDefinition,x:number,z:number){return Math.max(coveRoofBottom(z,x)+14,83+9*Math.sin(x*.047)+8*Math.cos(z*.063)+4*Math.sin((x+z)*.15),coveLandHeight(d,d.x+x,d.z+z)+2);}
 export function insideCoveArch(d:IslandDefinition,x:number,y:number,z:number,padding=0){
- const lx=x-d.x,lz=z-d.z;
+ const p=coveLocal(d,x,z),lx=p.x-d.x,lz=p.z-d.z;
  return lx>=archFront(lz)-padding&&lx<=archBack(lz)+padding&&Math.abs(lz-coveCave.z)<=coveCave.halfWidth+padding&&y>=coveRoofBottom(lz,lx)-padding&&y<=coveRoofTop(d,lx,lz)+padding;
 }
 export function buildCoveArch(d:IslandDefinition){
  const positions:number[]=[],rng=random(191);
  const point=(x:number,z:number,top:boolean)=>{
   const u=(x-coveCave.minX)/(coveCave.maxX-coveCave.minX),xx=archFront(z)*(1-u)+archBack(z)*u;
-  return new T.Vector3(d.x+xx,top?coveRoofTop(d,xx,z):coveRoofBottom(z,xx),d.z+z);
+  const p=covePoint(d,d.x+xx,d.z+z);
+  return new T.Vector3(p.x,top?coveRoofTop(d,xx,z):coveRoofBottom(z,xx),p.z);
  };
  const tri=(a:T.Vector3,b:T.Vector3,c:T.Vector3,_shade:number)=>{for(const p of[a,b,c])positions.push(p.x,p.y,p.z);};
  const quad=(a:T.Vector3,b:T.Vector3,c:T.Vector3,e:T.Vector3,shade:number)=>{tri(a,b,e,shade);tri(b,c,e,shade);};
@@ -45,7 +46,7 @@ export function addCoveLandmarks(root:T.Group,d:IslandDefinition,blockers:T.Box3
  for(let i=0;i<46;i++){
   const a=i/46*Math.PI*2,r=1.07+rng()*.16,x=d.x+Math.cos(a)*d.rx*r,z=d.z+Math.sin(a)*d.rz*r;
   if(x>d.x+130&&Math.abs(z-d.z-coveCave.z)<90)continue;
-  const sy=9+rng()*25;items.push({x,y:sy*.37-3,z,sx:4+rng()*10,sy,sz:4+rng()*9});
+  const sy=9+rng()*25;items.push({...covePoint(d,x,z),y:sy*.37-3,sx:4+rng()*10,sy,sz:4+rng()*9});
  }
  const mesh=new T.InstancedMesh(geo,new T.MeshStandardMaterial({color:0xffffff,roughness:.98,flatShading:true}),items.length),dummy=new T.Object3D(),color=new T.Color();
  items.forEach((v,i)=>{dummy.position.set(v.x,v.y,v.z);dummy.scale.set(v.sx,v.sy,v.sz);dummy.rotation.set((rng()-.5)*.17,rng()*6.28,(rng()-.5)*.17);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);color.setHex(i%3===0?0xc9bfa6:0xb4ae99);mesh.setColorAt(i,color);blockers.push(new T.Box3(new T.Vector3(v.x-v.sx,v.y-v.sy/2,v.z-v.sz),new T.Vector3(v.x+v.sx,v.y+v.sy/2,v.z+v.sz)));});
@@ -56,10 +57,10 @@ export function addCoveLandmarks(root:T.Group,d:IslandDefinition,blockers:T.Box3
  for(const face of[coveCave.minX,coveCave.maxX])for(let j=0;j<22;j++){
   const z=coveCave.z-coveCave.halfWidth+2*coveCave.halfWidth*(j+.12+rng()*.76)/22,x=face===coveCave.minX?archFront(z):archBack(z),bottom=coveRoofBottom(z,x),top=coveRoofTop(d,x,z);
   const sy=Math.max(4,(top-bottom)*.45),sx=5+rng()*11,sz=3+rng()*9;
-  dummy.position.set(d.x+x,(bottom+top)/2,d.z+z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,rng()*6.28,0);dummy.updateMatrix();archRocks.setMatrixAt(index++,dummy.matrix);
+  const p=covePoint(d,d.x+x,d.z+z);dummy.position.set(p.x,(bottom+top)/2,p.z);dummy.scale.set(sx,sy,sz);dummy.rotation.set(0,rng()*6.28,0);dummy.updateMatrix();archRocks.setMatrixAt(index++,dummy.matrix);
  }
  archRocks.castShadow=archRocks.receiveShadow=true;archRocks.name='隐秘海湾 / weathered arch rim stones';root.add(archRocks);
  const roofTrees=new T.InstancedMesh(new T.ConeGeometry(1,1,7),new T.MeshStandardMaterial({color:0x405e36,roughness:1,flatShading:true}),16);
- for(let i=0;i<16;i++){const x=240+rng()*98,z=coveCave.z-37+rng()*74,h=coveRoofTop(d,x,z),height=8+rng()*8;dummy.position.set(d.x+x,h+height*.5,d.z+z);dummy.scale.set(3+rng()*2,height,3+rng()*2);dummy.rotation.set(0,rng()*6.28,0);dummy.updateMatrix();roofTrees.setMatrixAt(i,dummy.matrix);}
+ for(let i=0;i<16;i++){const x=240+rng()*98,z=coveCave.z-37+rng()*74,h=coveRoofTop(d,x,z),height=8+rng()*8;const p=covePoint(d,d.x+x,d.z+z);dummy.position.set(p.x,h+height*.5,p.z);dummy.scale.set(3+rng()*2,height,3+rng()*2);dummy.rotation.set(0,rng()*6.28,0);dummy.updateMatrix();roofTrees.setMatrixAt(i,dummy.matrix);}
  roofTrees.castShadow=roofTrees.receiveShadow=true;root.add(roofTrees);
 }

@@ -1,5 +1,5 @@
 import {random} from '../world/WorldConfig.ts';
-export const cloudShapes=['cumulus','tower','streak','broken','anvil','bank'] as const;
+export const cloudShapes=['cumulus','tower','streak','broken','anvil','bank','humilis'] as const;
 export type CloudShape=typeof cloudShapes[number];
 type Lobe=[number,number,number,number,number,number];
 /** Continuous shape fields shared by density baking and local cloud immersion. */
@@ -8,6 +8,11 @@ export function createCloudField(shape:CloudShape,seed:number){
  const add=(x:number,y:number,z:number,rx:number,ry:number,rz:number)=>lobes.push([x+(rng()-.5)*.12,y+(rng()-.5)*.09,z,rx*(.9+rng()*.2),ry*(.9+rng()*.2),rz]);
  if(shape==='cumulus'){
   add(-.4,-.25,0,.65,.40,.58);add(.35,-.22,0,.65,.42,.62);add(-.4,.2,.05,.48,.55,.47);add(.15,.48,0,.53,.60,.52);add(.63,.05,.05,.43,.41,.45);add(-.05,.05,.4,.51,.48,.42);add(-.70,.40,.13,.27,.32,.28);add(-.23,.82,.04,.29,.32,.29);add(.37,.84,.1,.30,.32,.30);add(.82,.26,.04,.23,.28,.25);
+ }else if(shape==='humilis'){
+  add(-.47,-.17,0,.59,.26,.43);add(.30,-.16,.03,.70,.28,.49);
+  add(-.53,.10,-.06,.43,.40,.34);add(-.20,.35,.04,.40,.45,.39);
+  add(.27,.19,-.06,.49,.32,.38);add(.74,.01,.03,.35,.23,.27);
+  add(.08,-.04,.32,.48,.25,.29);
  }else if(shape==='tower'){
   add(-.2,-.55,0,.85,.35,.63);add(.2,-.14,0,.57,.62,.55);add(-.1,.45,.02,.57,.65,.49);add(.16,.95,.02,.46,.52,.45);add(-.48,.3,0,.37,.43,.40);
  }else if(shape==='streak'){

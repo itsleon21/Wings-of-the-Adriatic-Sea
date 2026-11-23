@@ -19,6 +19,7 @@ void main(){
 }`});
  private scale=.35;private width=1;private height=1;
  private quad=new FullScreenQuad(this.composite);private camera:T.PerspectiveCamera;private scene:T.Scene;private volumes:CloudVolumes;
+ get sceneDepth(){return this.composite.uniforms.sceneDepth.value as T.DepthTexture|null;}
  constructor(scene:T.Scene,camera:T.PerspectiveCamera,volumes:CloudVolumes){super();this.scene=scene;this.camera=camera;this.volumes=volumes;}
  setResolution(scale:number){this.scale=T.MathUtils.clamp(scale,.15,.5);this.volumes.setDetail(this.scale);this.setSize(this.width,this.height);}
  setSize(width:number,height:number){this.width=width;this.height=height;this.target.setSize(Math.max(1,Math.round(width*this.scale)),Math.max(1,Math.round(height*this.scale)));}

@@ -1,8 +1,9 @@
+import {canTalkToPirateCrew,pirateBoatStop} from './AirPirate.ts';
 import {coveCampSite} from '../world/CoveCamp.ts';
 import {landingProfile} from '../aircraft/LandingGuidance.ts';
 import {resolveAircraftId} from '../aircraft/AircraftCatalog.ts';
 import {mooringSites} from '../world/Moorings.ts';
-import {storyJobs,storyJob,storyStepTarget} from './StoryMissions.ts';
+import {storyJobs,storyJob,storyStepTarget,airPirateJobId} from './StoryMissions.ts';
 import {FlightAssessment,reputationContracts} from './FlightAssessment.ts';
 import type {Settlement} from './FlightAssessment.ts';
 import type {Role} from '../upgrades/Workshop.ts';
@@ -37,10 +38,10 @@ export class FlightJournal {
 
  reputationNeeded(id:string){return id.startsWith('veteran-')?30:0;}
  reputationRole(id:string):Role{return id.endsWith('tourism')?'tourism':id.endsWith('racing')?'racing':'rescue';}
- isRevealed(id:string){return id!=='secret'||this.data.discoveries?.includes('cove-logbook')===true||this.data.completed.includes('secret');}
+ isRevealed(id:string){return id!==airPirateJobId||this.data.discoveries?.includes('cove-logbook')===true||this.data.completed.includes('secret')||this.data.completed.includes(airPirateJobId);}
  private storyRequestState:'unseen'|'offered'|'accepted'='unseen';private storySteady=0;
  get storyRequest(){
-  if(!this.story)return undefined;
+  if(!this.story||this.story.id===airPirateJobId)return undefined;
   return this.data.storyEvents?.[this.story.id]??this.storyRequestState;
  }
  get storyRequestTarget(){
@@ -74,6 +75,17 @@ export class FlightJournal {
  storyLocked(id:string){const j=storyJob(id);return !!j?.previous&&!this.data.completed.includes(j.previous);}
  canBoard(id:string,berth?:string){const j=storyJob(id);return !!berth&&((['post','return-post'].includes(id)&&!!this.data.mail?.[id])||berth===this.jobs.find(c=>c.id===id)?.from||!!j&&(this.data.storyProgress?.[id]??0)>0);}
  private advanceStory(){const j=this.story;if(!j)return;const completed=j.steps[this.stopIndex];this.stopIndex++;this.data.storyProgress??={};this.data.storyProgress[j.id]=this.stopIndex;this.note('故事进展 · '+completed.title+' · '+completed.message);if(this.stopIndex>=j.steps.length){if(!this.data.completed.includes(j.id)){this.data.completed.push(j.id);this.settle(j.title,this.aircraft==='m5'?'tourism':this.aircraft==='mc72'?'racing':'rescue');}this.active=undefined;this.note('章节完成 · '+j.title);}this.persist();}
+ private pirateDepartureReady=false;
+ get pirateBoatVisible(){return this.active?.id===airPirateJobId&&this.stopIndex>=2;}
+ get pirateWreckVisible(){return this.active?.id===airPirateJobId&&this.stopIndex>=4;}
+ get pirateRendezvous(){return this.active?.id===airPirateJobId&&this.storyStage?.kind==='crew';}
+ talkToPirateCrew(position:{x:number;z:number},onWater:boolean,speedKmh:number){
+  if(!this.pirateRendezvous||!canTalkToPirateCrew(position,onWater,speedKmh))return;
+  const reply=this.storyStage!.message;
+  this.pirateDepartureReady=true;
+  this.advanceStory();
+  return reply;
+ }
  private stopIndex=0;
  private scenicStops=['coral','lighthouse','town','cove','pine','harbor'].map(id=>{const d=islands.find(i=>i.id===id)!;return {name:d.name,position:{x:d.x+d.rx+120,y:150,z:d.z}};});
  get activeJob(){return this.jobs.find(c=>c.id===this.active?.id);}
@@ -84,7 +96,7 @@ export class FlightJournal {
  get taskHint(){if(this.storyRequest==='accepted')return '临时委托 · 海拔 '+this.storyRequestTarget!.position.y+'±45米 · '+(this.aircraft==='mc72'?'空速≥280':this.aircraft==='m5'?'空速≤150':'空速≤230')+'km/h · 坡度<10° · 平飞 '+this.storySteady.toFixed(1)+'/3秒';if(this.active?.id==='hotel-scenic'){
  const comfort=this.assessment.seconds?Math.round(100*(1-this.assessment.roughSeconds/this.assessment.seconds)):100;
  return ' · 乘客平稳度 '+comfort+'%'+(this.tourRequest==='accepted'?' · 取景 '+this.tourPhotoSeconds.toFixed(1)+'/3秒 · 80–160米、≤145km/h、坡度≤8°':' · 轻柔转弯，保持低速观光');
- }if(this.guidedMail)return ' · '+this.mailHint;if(this.storyStage){const s=this.storyStage;return ` · 阶段 ${this.stopIndex+1}/${this.stepCount} · ${s.message}`+(s.minKmh?' · 至少'+s.minKmh+' km/h':'')+(s.maxKmh?' · 不超过'+s.maxKmh+' km/h':'');}const c=this.activeJob,step=c?.stops?.[this.stopIndex];return (this.aircraft==='m5'&&this.active?' · 乘客平稳度 '+Math.round(this.assessment.seconds>0?100*(1-this.assessment.roughSeconds/this.assessment.seconds):100)+'% · 避免急转与超速 ':'')+(step?[(step.minKmh?'至少'+step.minKmh+' km/h':''),(step.maxKmh?'不超过'+step.maxKmh+' km/h':'')].filter(Boolean).join(' · '):'')+(c?.limit?' · 空中剩余 '+Math.ceil(Math.max(0,c.limit-this.jobSeconds))+' 秒':'');}
+ }if(this.guidedMail)return ' · '+this.mailHint;if(this.storyStage){const s=this.storyStage;return ` · 阶段 ${this.stopIndex+1}/${this.stepCount} · ${s.brief??s.message}`+(s.minKmh?' · 至少'+s.minKmh+' km/h':'')+(s.maxKmh?' · 不超过'+s.maxKmh+' km/h':'');}const c=this.activeJob,step=c?.stops?.[this.stopIndex];return (this.aircraft==='m5'&&this.active?' · 乘客平稳度 '+Math.round(this.assessment.seconds>0?100*(1-this.assessment.roughSeconds/this.assessment.seconds):100)+'% · 避免急转与超速 ':'')+(step?[(step.minKmh?'至少'+step.minKmh+' km/h':''),(step.maxKmh?'不超过'+step.maxKmh+' km/h':'')].filter(Boolean).join(' · '):'')+(c?.limit?' · 空中剩余 '+Math.ceil(Math.max(0,c.limit-this.jobSeconds))+' 秒':'');}
  rescueUpdate(dt:number,onWater:boolean,speed:number,distance:number){if(this.active?.id!=='rescue'&&this.storyStage?.kind!=='rescue')return false;if(!Number.isFinite(dt)||dt<=0||dt>.2)return false;if(distance<100&&speed>5)this.assessment.rescueApproach+=dt;this.rescueSeconds=onWater&&speed<=.55&&distance<=35?this.rescueSeconds+dt:0;if(this.rescueSeconds<5-1e-7)return false;if(this.storyStage?.kind==='rescue'){this.advanceStory();this.rescueSeconds=0;return true;}return this.pickup();}
  allowed(id:string){if(!this.isRevealed(id))return false;if(id==='return-post'&&!this.data.completed.includes('post'))return false;if(this.storyLocked(id))return false;if(this.workshop.reputation[this.reputationRole(id)]<this.reputationNeeded(id))return false;const c=this.jobs.find(c=>c.id===id);if(c?.aircraft)return c.aircraft===this.aircraft;return id==='rescue'?this.aircraft==='redwing':id==='passengers'?this.aircraft==='m5':true;}
  docking(speed:number,distance:number){this.assessment.docking(speed,distance);const grade=speed<2&&distance<15?'精准靠泊':speed<3.5?'平稳靠泊':'安全靠泊';const text=grade+' · '+Math.round(speed*3.6)+' km/h · 距泊位 '+Math.round(distance)+' m';this.note(text);return text;}
@@ -92,7 +104,7 @@ export class FlightJournal {
  private drawCharter(previous?:string){const ports=islands.filter(i=>i.id!=='hotel'&&i.id!==previous&&i.id!=='cove');const dest=ports[Math.floor(Math.random()*ports.length)];return {id:'charter',from:'hotel',to:dest.id,title:'酒店水上出租机',detail:'接上旅客，飞往'+dest.name+'栈桥。交付后酒店将收到新的预约。'};}
  tourRequest:'unseen'|'offered'|'accepted'|'declined'|'completed'='unseen';
  tourPhotoSeconds=0;
- get tourPhotoTarget(){return {name:'酒店留影 · 80–160米，平飞3秒',position:{x:hotelIsland.x+hotelIsland.rx+230,y:110,z:hotelIsland.z+100}};}
+ get tourPhotoTarget(){return {name:'酒店留影 · 80–160米，平飞3秒',position:{x:hotelIsland.x+hotelIsland.rz+230,y:110,z:hotelIsland.z-100}};}
  chooseTourRequest(accept:boolean){
   if(this.tourRequest!=='offered'&&!(this.tourRequest==='accepted'&&!accept))return;
   this.tourRequest=accept?'accepted':'declined';this.tourPhotoSeconds=0;
@@ -102,20 +114,25 @@ export class FlightJournal {
  pickup(){if(this.active?.id!=='rescue')return false;if(!this.data.completed.includes('rescue'))this.data.completed.push('rescue');this.settle('外海救援电报','rescue');this.active=undefined;this.note('救援完成 · 灯塔外海船员已安全接回');return true;}
  landing(sink:number,bank:number){this.assessment.landing(sink,bank);const angle=Math.abs(bank)*180/Math.PI;const grade=sink<1&&angle<4?'轻柔着水':sink<2&&angle<8?'平稳着水':'着水成功';const text=grade+' · 下沉 '+sink.toFixed(1)+' m/s · 坡度 '+Math.round(angle)+'°';this.note(text);return text;}
  data=empty();active?:{id:string;observed:boolean};private saveTime=0;private previous?:{x:number;z:number};private storage?:Pick<Storage,'getItem'|'setItem'>;
- constructor(storage?:Pick<Storage,'getItem'|'setItem'>){this.workshop=new Workshop(storage);try{this.storage=storage??globalThis.localStorage;const v=JSON.parse(this.storage?.getItem('adriatic.journal.v1')??'null');if(v?.version===1){this.data.discoveries=Array.isArray(v.discoveries)&&v.discoveries.includes('cove-logbook')?['cove-logbook']:[];this.data.mail={};for(const id of ['post','return-post']){const m=v.mail?.[id];if(m&&['departure','cruise','approach'].includes(m.phase)&&['unseen','offered','accepted','declined','completed'].includes(m.event))this.data.mail[id]={phase:m.phase,event:m.event};}this.data.storyEvents={};for(const j of storyJobs){const state=v.storyEvents?.[j.id];if(state==='declined'||state==='completed')this.data.storyEvents[j.id]=state;}this.data.storyProgress={};for(const j of storyJobs){const n=v.storyProgress?.[j.id];if(Number.isInteger(n)&&n>=0&&n<j.steps.length)this.data.storyProgress[j.id]=n;}const ids=islands.map(d=>d.id);for(const key of ['visited','docked','completed'] as const)this.data[key]=Array.isArray(v[key])?[...new Set<string>(v[key].filter((s:unknown)=>typeof s==='string'&&(key==='completed'?this.jobs.map(c=>c.id):ids).includes(s)))]:[];this.data.entries=Array.isArray(v.entries)?v.entries.filter((s:unknown)=>typeof s==='string'&&s.length<180).slice(-40):[];for(const key of ['airSeconds','distance','photos'] as const)this.data[key]=Number.isFinite(v[key])?Math.max(0,Math.min(1e8,v[key])):0;this.data.raceWinner=v.raceWinner===true;this.data.livery=v.livery==='azure'||v.livery==='ivory'?v.livery:'original';if(!this.unlocked(this.data.livery))this.data.livery='original';}}catch{}}
+ constructor(storage?:Pick<Storage,'getItem'|'setItem'>){this.workshop=new Workshop(storage);try{this.storage=storage??globalThis.localStorage;const v=JSON.parse(this.storage?.getItem('adriatic.journal.v1')??'null');if(v?.version===1){this.data.discoveries=Array.isArray(v.discoveries)&&v.discoveries.includes('cove-logbook')?['cove-logbook']:[];this.data.mail={};for(const id of ['post','return-post']){const m=v.mail?.[id];if(m&&['departure','cruise','approach'].includes(m.phase)&&['unseen','offered','accepted','declined','completed'].includes(m.event))this.data.mail[id]={phase:m.phase,event:m.event};}this.data.storyEvents={};for(const j of storyJobs){const state=v.storyEvents?.[j.id];if(state==='declined'||state==='completed')this.data.storyEvents[j.id]=state;}this.data.storyProgress={};for(const j of storyJobs){const n=v.storyProgress?.[j.id];if(Number.isInteger(n)&&n>=0&&n<j.steps.length)this.data.storyProgress[j.id]=n;}const ids=islands.map(d=>d.id);for(const key of ['visited','docked','completed'] as const)this.data[key]=Array.isArray(v[key])?[...new Set<string>(v[key].filter((s:unknown)=>typeof s==='string'&&(key==='completed'?[...this.jobs.map(c=>c.id),'secret']:ids).includes(s)))]:[];this.data.entries=Array.isArray(v.entries)?v.entries.filter((s:unknown)=>typeof s==='string'&&s.length<180).slice(-40):[];for(const key of ['airSeconds','distance','photos'] as const)this.data[key]=Number.isFinite(v[key])?Math.max(0,Math.min(1e8,v[key])):0;this.data.raceWinner=v.raceWinner===true;this.data.livery=v.livery==='azure'||v.livery==='ivory'?v.livery:'original';if(!this.unlocked(this.data.livery))this.data.livery='original';}}catch{}}
  persist(){try{this.storage?.setItem('adriatic.journal.v1',JSON.stringify(this.data));}catch{}}
  private note(text:string){this.data.entries.push(new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())+' · '+text);this.data.entries=this.data.entries.slice(-40);this.persist();}
  unlocked(id:string){return id==='original'||id==='azure'&&this.data.visited.length>=3||id==='ivory'&&(this.data.completed.length>=2||this.data.raceWinner);}
  selectLivery(id:string){if(!this.unlocked(id)||!['original','azure','ivory'].includes(id))return false;this.data.livery=id as JournalSave['livery'];this.persist();return true;}
- accept(id:string,berth?:string){const c=this.jobs.find(c=>c.id===id);if(!this.allowed(id)||!c||this.active||!this.canBoard(id,berth)||(!['passengers','charter','hotel-scenic'].includes(id)&&this.data.completed.includes(id)))return false;this.storyRequestState='unseen';this.storySteady=0;this.tourRequest='unseen';this.tourPhotoSeconds=0;this.mailHint='按 F 解缆，离开栈桥后加速起飞';this.mailApproach=false;this.assessment.reset();this.steadyPhotoSeconds=0;this.stopIndex=storyJob(id)?this.data.storyProgress?.[id]??0:0;this.rescueSeconds=0;this.jobSeconds=0;if(['post','return-post'].includes(id)){this.data.mail??={};this.data.mail[id]??={phase:'departure',event:'unseen'};this.mailApproach=this.data.mail[id].phase==='approach';}this.active={id,observed:!c.stops?.length&&id!=='passengers'&&!c.via&&id!=='rescue'};this.note('接取委托 · '+c.title);return true;}
+ accept(id:string,berth?:string){const c=this.jobs.find(c=>c.id===id);if(!this.allowed(id)||!c||this.active||!this.canBoard(id,berth)||(!['passengers','charter','hotel-scenic'].includes(id)&&this.data.completed.includes(id)))return false;this.storyRequestState='unseen';this.storySteady=0;this.pirateDepartureReady=false;this.tourRequest='unseen';this.tourPhotoSeconds=0;this.mailHint='按 F 解缆，离开栈桥后加速起飞';this.mailApproach=false;this.assessment.reset();this.steadyPhotoSeconds=0;this.stopIndex=storyJob(id)?this.data.storyProgress?.[id]??0:0;this.rescueSeconds=0;this.jobSeconds=0;if(['post','return-post'].includes(id)){this.data.mail??={};this.data.mail[id]??={phase:'departure',event:'unseen'};this.mailApproach=this.data.mail[id].phase==='approach';}this.active={id,observed:!c.stops?.length&&id!=='passengers'&&!c.via&&id!=='rescue'};this.note('接取委托 · '+c.title);return true;}
  cancel(){if(this.active){this.note('取消委托 · '+this.jobs.find(c=>c.id===this.active!.id)!.title);this.active=undefined;}}
- resetFlight(){this.previous=undefined;this.cancel();this.persist();}
- update(dt:number,p:{x:number;y:number;z:number},airborne:boolean,berth?:string,speedKmh=0,bank=0){
+ interruptForRecovery(){
+  this.previous=undefined;
+  this.rescueSeconds=this.steadyPhotoSeconds=this.storySteady=this.tourPhotoSeconds=0;
+  this.pirateDepartureReady=false;
+ }
+ resetFlight(){this.interruptForRecovery();this.cancel();this.persist();}
+ update(dt:number,p:{x:number;y:number;z:number},airborne:boolean,berth?:string,speedKmh=0,bank=0,coralSignal=false){
   if(!Number.isFinite(dt)||dt<=0||dt>.2||![p.x,p.y,p.z].every(Number.isFinite))return [];
   this.saveTime+=dt;if(this.saveTime>=30){this.saveTime=0;this.persist();}
   const messages:string[]=[];
-  if(!this.isRevealed('secret')&&p.y<80&&Math.hypot(p.x-coveCampSite.x,p.z-coveCampSite.z)<180){
-   this.data.discoveries??=[];this.data.discoveries.push('cove-logbook');const text='发现隐藏委托 · 营地桌上的航海日志 · 靠泊隐湾后按 J 查看共享任务';this.note(text);messages.push(text);this.persist();
+  if(!this.isRevealed(airPirateJobId)&&(berth==='cove'||p.y<80&&Math.hypot(p.x-coveCampSite.x,p.z-coveCampSite.z)<180)){
+   this.data.discoveries??=[];this.data.discoveries.push('cove-logbook');const text='发现隐藏委托 · 篝火旁的旧飞行日志 · 靠泊隐湾后按 J 查看共享任务';this.note(text);messages.push(text);this.persist();
   }
   if(airborne){this.data.airSeconds+=dt;if(this.previous){const d=Math.hypot(p.x-this.previous.x,p.z-this.previous.z);if(d<200)this.data.distance+=d;}}this.previous={x:p.x,z:p.z};
   for(const island of islands){if(p.y<450&&Math.hypot((p.x-island.x)/island.rx,(p.z-island.z)/island.rz)<1.25&&!this.data.visited.includes(island.id)){this.data.visited.push(island.id);const text='发现 · '+island.name;this.note(text);messages.push(text);}}
@@ -153,15 +170,18 @@ export class FlightJournal {
    return messages;
   }
   if(this.storyStage){const s=this.storyStage,target=this.scenicStop!;let passed=false;
-   if(s.kind==='takeoff')passed=airborne&&p.y>=30;
+   if(s.kind==='takeoff'){
+    if(s.target&&!airborne&&Math.hypot(p.x-pirateBoatStop.x,p.z-pirateBoatStop.z)<450&&!berth)this.pirateDepartureReady=true;
+    passed=airborne&&p.y>=30&&(!s.target||this.pirateDepartureReady);
+   }
    else if(s.kind==='dock')passed=!airborne&&berth===s.island;
-   else if(s.kind==='flyover')passed=airborne&&Math.abs(p.y-(s.altitude??150))<65&&speedKmh>=(s.minKmh??0)&&speedKmh<=(s.maxKmh??Infinity)&&Math.hypot(p.x-target.position.x,p.z-target.position.z)<240;
+   else if(s.kind==='flyover')passed=(!s.requiresBonfire||coralSignal)&&airborne&&Math.abs(p.y-(s.altitude??150))<65&&speedKmh>=(s.minKmh??0)&&speedKmh<=(s.maxKmh??Infinity)&&Math.hypot(p.x-target.position.x,p.z-target.position.z)<(s.radius??240);
    if(s.photoSeconds){
     this.steadyPhotoSeconds=passed&&Math.abs(bank)<=Math.PI/18?this.steadyPhotoSeconds+dt:0;
     passed=this.steadyPhotoSeconds>=s.photoSeconds-1e-7;
     if(passed){this.photo();this.steadyPhotoSeconds=0;}
    }
-   if(passed){const title=s.title;this.advanceStory();messages.push('故事进展 · '+title+(this.active?' · '+this.storyStage?.title:' · 本章完成'));}return messages;
+   if(passed){const title=s.title;this.advanceStory();messages.push(s.brief?s.message:'故事进展 · '+title+(this.active?' · '+this.storyStage?.title:' · 本章完成'));}return messages;
   }
   if(this.active?.id==='hotel-scenic'){
    if(this.stopIndex>=1&&this.tourRequest==='unseen')this.tourRequest='offered';

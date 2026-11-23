@@ -4,7 +4,28 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { getAircraft } from './AircraftCatalog.ts';
 import type { AircraftId } from './FlightConfig.ts';
-import {prepareAircraftSurface,physicalAircraftMaterial} from '../rendering/AircraftSurface.ts';
+import {prepareAircraftSurface,physicalAircraftMaterial,setAircraftSkySpecular} from '../rendering/AircraftSurface.ts';
+import {CockpitInstruments} from './CockpitInstruments.ts';
+
+// Seat the fasteners in the exported ellipsoid at the blade roots. Both MC.72
+// hubs own their hardware, so the two sets follow their opposing rotations.
+function hubFasteners(id:AircraftId,pivot:T.Object3D){
+ const name=id==='redwing'?'Ivory_streamlined_spinner':id==='m5'?'Pusher_hub':
+  id==='mc72'?(pivot.name.endsWith('Rear')?'Rear_propeller_hub':'Front_propeller_hub'):undefined;
+ const hub=pivot.children.find(node=>node.name.replace(/ /g,'_')===name);
+ if(!hub)return;
+ const bolts=new T.InstancedMesh(new T.CylinderGeometry(.006,.008,.005,6),
+  new T.MeshStandardMaterial({color:0x887f71,metalness:.72,roughness:.45}),6);
+ const pose=new T.Object3D(),axis=new T.Vector3(),up=new T.Vector3(0,1,0);
+ const z=(id==='m5'?1:-1)*.45,r=Math.sqrt(1-z*z);
+ for(let i=0;i<6;i++){
+  const angle=(i+.5)*Math.PI/3,x=r*Math.cos(angle),y=r*Math.sin(angle);
+  pose.position.set(x*hub.scale.x,y*hub.scale.y,z*hub.scale.z).add(hub.position);
+  axis.set(x/hub.scale.x,y/hub.scale.y,z/hub.scale.z).normalize();
+  pose.quaternion.setFromUnitVectors(up,axis);pose.updateMatrix();bolts.setMatrixAt(i,pose.matrix);
+ }
+ bolts.name='Propeller hub fasteners';pivot.add(bolts);
+}
 
 function disposeTree(root:T.Object3D) {
   const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>(),textures=new Set<T.Texture>();
@@ -16,6 +37,7 @@ export class AircraftModel {
   readonly root=new T.Group();readonly rotor=new PropellerDynamics();
   private propeller=new T.Group();private propellers:T.Object3D[]=[];private ailerons:T.Object3D[]=[];private elevator?:T.Object3D;private rudder?:T.Object3D;
   private blurs:T.Mesh<T.RingGeometry,T.MeshBasicMaterial>[]=[];private request=0;
+  private instruments?:CockpitInstruments;
   isLoading=false;assetStatus='程序外形';
   aircraftId:AircraftId;
   constructor(aircraftId:AircraftId='redwing'){this.aircraftId=aircraftId;this.root.add(this.fallback());this.cacheNightMaterials();}
@@ -42,7 +64,7 @@ export class AircraftModel {
   async load(renderer?:T.WebGLRenderer,id:AircraftId=this.aircraftId):Promise<boolean>{
     this.rotor.reset();
     const request=++this.request;this.aircraftId=id;const plane=getAircraft(id);this.isLoading=true;this.assetStatus=`${plane.name} 模型加载中`;
-    disposeTree(this.root);this.root.clear();this.ailerons=[];this.elevator=this.rudder=undefined;this.blurs=[];this.root.add(this.fallback());this.cacheNightMaterials();
+    disposeTree(this.root);this.root.clear();this.instruments=undefined;this.ailerons=[];this.elevator=this.rudder=undefined;this.blurs=[];this.root.add(this.fallback());this.cacheNightMaterials();
     try{
       const gltf=await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/${plane.modelFile}`);
       if(request!==this.request){disposeTree(gltf.scene);return false;}
@@ -57,12 +79,14 @@ export class AircraftModel {
         for(const material of materials){const m=material as T.MeshPhysicalMaterial;if(!prepared.has(m)){prepareAircraftSurface(m,!!ao);prepared.add(m);}if(m.transparent)m.depthWrite=false;for(const texture of [m.map,m.normalMap,m.roughnessMap,m.metalnessMap])if(texture){texture.anisotropy=Math.min(8,renderer?.capabilities.getMaxAnisotropy()??4);texture.needsUpdate=true;}}
       }});
       for(const [source,material] of upgraded)if(source!==material)source.dispose();
-      for(const pivot of this.propellers){const blur=new T.Mesh(new T.RingGeometry(.16,plane.propellerRadius,64),new T.MeshBasicMaterial({color:0xc6b487,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));blur.position.z=-.025*plane.propellerDirection;pivot.add(blur);this.blurs.push(blur);}
+      if(id==='redwing'&&typeof document!=='undefined'){this.instruments=new CockpitInstruments();gltf.scene.add(this.instruments.root);}
+      for(const pivot of this.propellers){hubFasteners(id,pivot);const blur=new T.Mesh(new T.RingGeometry(.16,plane.propellerRadius,64),new T.MeshBasicMaterial({color:0xc6b487,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));blur.position.z=-.025*plane.propellerDirection;pivot.add(blur);this.blurs.push(blur);}
       this.cacheNightMaterials();this.isLoading=false;this.assetStatus=`${plane.name} / GLB`;return true;
     }catch{if(request===this.request){this.isLoading=false;this.assetStatus=`${plane.name} 程序外形（模型未加载）`;}return false;}
   }
   private nightMaterials = new Set<T.MeshStandardMaterial>();
   private lastNightness = NaN;
+  private lastSpecular = NaN;
   private readonly nightTint = new T.Color();
 
   private cacheNightMaterials(){
@@ -73,18 +97,27 @@ export class AircraftModel {
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
         if(!(material instanceof T.MeshStandardMaterial)||this.nightMaterials.has(material)) continue;
         this.nightMaterials.add(material);
-        material.userData.nightBaseEnv = material.envMapIntensity;
         material.userData.nightBaseEmission = material.emissive.clone();
         material.userData.nightBaseIntensity = material.emissiveIntensity;
+        if(material instanceof T.MeshPhysicalMaterial){
+          material.userData.baseSpecular=material.specularIntensity;
+          material.userData.baseCoatRoughness=material.clearcoatRoughness;
+        }
       }
     });
   }
 
-  setNightness(n:number){
-    if(n===this.lastNightness) return;
-    this.lastNightness=n;
+  setNightness(n:number,visibleLight=1,rain=0){
+    // A dim sky still lights the airframe. Distinct highlights need an exposed source.
+    const specular=T.MathUtils.lerp(.28,1,visibleLight)*(1-.64*n*rain);
+    if(n===this.lastNightness&&specular===this.lastSpecular)return;
+    this.lastNightness=n;this.lastSpecular=specular;
     for(const m of this.nightMaterials){
-      m.envMapIntensity=m.userData.nightBaseEnv*(1+n*.8);
+      setAircraftSkySpecular(m,specular);
+      if(m instanceof T.MeshPhysicalMaterial){
+        m.specularIntensity=m.userData.baseSpecular*T.MathUtils.lerp(.40,1,specular);
+        m.clearcoatRoughness=T.MathUtils.lerp(m.userData.baseCoatRoughness,.78,1-specular);
+      }
       m.emissive.copy(m.userData.nightBaseEmission);
       m.emissiveIntensity=m.userData.nightBaseIntensity;
       if(n>0&&!m.transparent){
@@ -92,6 +125,7 @@ export class AircraftModel {
         m.emissiveIntensity=Math.max(1,m.emissiveIntensity);
       }
     }
+    this.instruments?.setNightness(n);
   }
   update(dt:number,throttle:number,roll:number,pitch:number,yaw:number,airspeed=0,airborne=false,stopped=false){
     const rotationSpeed=this.rotor.update(dt,throttle,airspeed,airborne,stopped,this.aircraftId);
@@ -100,5 +134,6 @@ export class AircraftModel {
     this.ailerons.forEach((object,i)=>object.rotation.x=(i===0?1:-1)*roll*.25);
     if(this.elevator)this.elevator.rotation.x=-pitch*.25;if(this.rudder)this.rudder.rotation.y=-yaw*.25;
   }
+  updateInstruments(dt:number,airspeed:number,altitude:number,visible=true){if(this.instruments){this.instruments.root.visible=visible;this.instruments.update(dt,airspeed,altitude,this.rotor.angularSpeed*60/(Math.PI*2));}}
   dispose(){this.nightMaterials.clear();this.request++;disposeTree(this.root);this.root.clear();this.isLoading=false;}
 }

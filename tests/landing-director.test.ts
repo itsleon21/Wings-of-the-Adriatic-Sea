@@ -22,7 +22,7 @@ test('visual approach stays anchored, hides on landing and resets on request',()
  director.dispose();
 });
 
-import {planTaskLanding,clearTaxiPath} from '../src/aircraft/LandingDirector.ts';
+import {planTaskLanding,clearTaxiPath,planLandingRetry} from '../src/aircraft/LandingDirector.ts';
 import {mooringSites} from '../src/world/Moorings.ts';
 import {allLandforms,terrainHeight} from '../src/world/WorldConfig.ts';
 test('task approaches are anchored offshore of the actual mission berth with a clear run',()=>{
@@ -45,4 +45,15 @@ test('mission guide persists into taxi, stops at delivery, and rejects taxi line
  f.position.z=20;guide.update(.1,f,true,()=>true,()=>0,goal);assert.match(guide.message,/F 靠泊/);
  assert.equal(clearTaxiPath(new T.Vector3(0,0,600),new T.Vector3(),(x,z)=>z<250||z>350),false);
  guide.update(.1,f,false,()=>true,()=>0);assert.equal(guide.root.visible,false);assert.equal(guide.navigationPoint,undefined);guide.dispose();
+});
+
+test('retry finds an airborne entry into the same water approach and rejects blocked water',async()=>{
+ const {pirateBoatPosition,pirateBoatStop}=await import('../src/journey/AirPirate.ts');
+ const clear=(x:number,z:number)=>Math.abs(x)<5900&&Math.abs(z)<5900&&Math.hypot(x-pirateBoatPosition.x,z-pirateBoatPosition.z)>23&&allLandforms.every(d=>terrainHeight(d,x,z)<-3);
+ const goal={name:'蓝帆船',position:pirateBoatStop,outward:new T.Vector3(0,0,1),crew:true};
+ const retry=planLandingRetry(goal,clear);
+ assert.ok(retry);assert.ok(retry.position.y>60);
+ const forward=new T.Vector3(-Math.sin(retry.heading),0,-Math.cos(retry.heading));
+ assert.ok(goal.position.clone().sub(retry.position).dot(forward)>1000);
+ assert.equal(planLandingRetry(goal,()=>false),undefined);
 });

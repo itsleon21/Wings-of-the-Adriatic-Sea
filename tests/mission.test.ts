@@ -20,8 +20,8 @@ test('three complete physical flights: takeoff, every main island, landing and r
 });
 
 test('sightseeing route visits every main island with safe clearance and incoming-facing gates',()=>{
- assert.equal(route.length,allLandforms.filter(d=>!d.id.startsWith('reef-')).length+1);
- assert.deepEqual(new Set(route.flatMap(p=>p.islandId?[p.islandId]:[])),new Set(allLandforms.filter(d=>!d.id.startsWith('reef-')).map(d=>d.id)));
+ assert.equal(route.length,allLandforms.filter(d=>!d.id.startsWith('reef-')&&d.id!=='north-coast').length+1);
+ assert.deepEqual(new Set(route.flatMap(p=>p.islandId?[p.islandId]:[])),new Set(allLandforms.filter(d=>!d.id.startsWith('reef-')&&d.id!=='north-coast').map(d=>d.id)));
  for(let i=1;i<route.length;i++){
   const p=route[i],previous=route[i-1].position,d=allLandforms.find(d=>d.id===p.islandId)!;
   assert.ok(Math.hypot(p.position.x-d.x,p.position.z-d.z)<Math.max(d.rx,d.rz)*1.3);

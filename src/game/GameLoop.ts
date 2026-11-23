@@ -17,7 +17,7 @@ export class GameLoop {
     const dt = Math.min(Math.max((now - this.previous) / 1000, 0), 0.1);
     this.previous = now;
     this.accumulator += dt;
-    while (this.accumulator >= this.step) { this.update(this.step); this.accumulator -= this.step; }
+    while (this.accumulator >= this.step) { this.accumulator -= this.step; this.update(this.step); }
     this.render(this.accumulator / this.step, dt);
     this.frameId = requestAnimationFrame(this.frame);
   };

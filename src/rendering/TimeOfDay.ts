@@ -13,7 +13,7 @@ export function daylightAt(hour:number){
  const sunset=(1-Math.cos(angle))/2;
  const color=[1,.91-warm*(.13+.18*sunset),.74-warm*(.32+.13*sunset)];
  const phase:TimeId=h<5||h>=21?'night':h<10?'morning':h<16?'noon':h<21?'dusk':'night';
- return{hour:h,sunset,solarElevation:elevation,moonDirection,phase,day,warm,nightness,direction,color,label:`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}`};
+ return{hour:h,sunset,solarElevation:elevation,solarDirection:raw,moonDirection,phase,day,warm,nightness,direction,color,label:`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}`};
 }
 export type DaylightValues=ReturnType<typeof daylightAt>;
 export const dayCycleSeconds=24*60;
@@ -22,6 +22,9 @@ export class TimeOfDay{
  hour=12;automatic=true;private chosen:TimeId='noon';private destination?:number;
  constructor(id:TimeId='noon'){this.hour=timePresets[id].hour;this.chosen=id;}
  select(id:TimeId,instant=false){this.automatic=false;this.chosen=id;this.destination=timePresets[id].hour;if(instant){this.hour=this.destination;this.destination=undefined;}}
+ waitUntil(hour:number){
+  this.hour=wrap(hour);this.chosen=this.current.phase;this.destination=undefined;
+ }
  setAutomatic(value:boolean){this.automatic=value;if(!value)this.chosen=this.current.phase;if(value)this.destination=undefined;}
  update(dt:number,active:boolean){if(!active||!Number.isFinite(dt)||dt<=0)return;
   if(this.destination!==undefined){const delta=wrap(this.destination-this.hour+12)-12;this.hour=wrap(this.hour+delta*(1-Math.exp(-dt*.65)));if(Math.abs(delta)<.005){this.hour=this.destination;this.destination=undefined;}}

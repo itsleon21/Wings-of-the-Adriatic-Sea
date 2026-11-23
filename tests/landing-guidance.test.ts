@@ -34,7 +34,7 @@ test('automatic guide appears on low descent, stays out of takeoff, and confirms
  assert.equal(landingAdvice(FlightConfig,{...base,state:'ON_WATER',landingCount:1}).title,'着水完成');
 });
 test('water approach check rejects island terrain and a shoreline ahead of an otherwise wet position',()=>{
- const world=new World();assert.deepEqual(world.landingWaterAt(new Vector3(harborRunway.x,20,harborRunway.z),-Math.PI/2,35),{overWater:true,clearAhead:true});
+ const world=new World();assert.deepEqual(world.landingWaterAt(new Vector3(harborRunway.x,20,harborRunway.z),harborRunway.heading,35),{overWater:true,clearAhead:true});
  const d=islands[2];assert.equal(world.landingWaterAt(new Vector3(d.x,160,d.z),0,35).overWater,false);
- assert.deepEqual(world.landingWaterAt(new Vector3(harbor.x,30,harbor.z+200),0,40),{overWater:true,clearAhead:false});
+ assert.deepEqual(world.landingWaterAt(new Vector3(harbor.x-200,30,harbor.z-160),-Math.PI/2,40),{overWater:true,clearAhead:false});
 });

@@ -1,20 +1,27 @@
-import {islands,terrainHeight} from './WorldConfig.ts';
+import {islands,terrainHeight,harborPoint,townPoint,townYaw} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {waterfrontPoint} from './IslandDetails.ts';
 export interface CoastalLandmarkSite{id:string;island:string;kind:'windmill'|'shipyard'|'fishery';style?:number;x:number;z:number;angle:number;radius:number}
+// Aim across the local approach, offset from the direct bearing to the basin.
+export function millBearing(d:IslandDefinition,x:number,z:number){
+ if(d.id!=='town')return Math.PI*3/4;
+ const bay=townPoint(d,d.x,d.z+.79*d.rz);
+ return Math.atan2(bay.x-x,bay.z-z)+Math.PI/9;
+}
 const chosenMills:CoastalLandmarkSite[]=[];
 function mill(d:IslandDefinition,ax:number,az:number,id:string):CoastalLandmarkSite{
- const facing=d.id==='town'?-1:1,cx=d.x+ax*d.rx*facing,cz=d.z+az*d.rz*facing;
+ const anchor={x:d.x+ax*d.rx,z:d.z+az*d.rz};
+ const {x:cx,z:cz}=d.id==='harbor'?harborPoint(d,anchor.x,anchor.z):townPoint(d,anchor.x,anchor.z);
  for(let ring=0;ring<18;ring++)for(let j=0;j<Math.max(1,ring*8);j++){
   const a=j/Math.max(1,ring*8)*Math.PI*2,x=cx+Math.cos(a)*ring*8,z=cz+Math.sin(a)*ring*8,h=terrainHeight(d,x,z);
   if(h<24||h>d.height*(id==='town-hill-mill'?1:.88)||chosenMills.some(p=>Math.hypot(x-p.x,z-p.z)<90))continue;
   const heights=[[-9,-9],[9,-9],[-9,9],[9,9]].map(([dx,dz])=>terrainHeight(d,x+dx,z+dz));
   if(Math.max(...heights)-Math.min(...heights)>2.7)continue;
-  const result:CoastalLandmarkSite={id,island:d.id,kind:'windmill',x,z,angle:Math.PI*3/4,style:chosenMills.length%6,radius:id==='town-hill-mill'?48:30};chosenMills.push(result);return result;
+  const result:CoastalLandmarkSite={id,island:d.id,kind:'windmill',x,z,angle:millBearing(d,x,z),style:chosenMills.length%6,radius:id==='town-hill-mill'?48:30};chosenMills.push(result);return result;
  }throw new Error('No grounded windmill site: '+id);
 }
 function shore(d:IslandDefinition,a:number,inland:number,kind:'shipyard'|'fishery',id:string,radius:number):CoastalLandmarkSite{
- const p=waterfrontPoint(d,a,inland);return{id,island:d.id,kind,x:p.x,z:p.z,angle:Math.atan2(-p.nx,-p.nz),radius};
+ const p=waterfrontPoint(d,a,inland);return{id,island:d.id,kind,x:p.x,z:p.z,angle:d.id==='town'&&kind==='fishery'?townYaw:Math.atan2(-p.nx,-p.nz),radius};
 }
 export const coastalLandmarkSites:CoastalLandmarkSite[]=[
  mill(islands[0],-.45,-.20,'base-mill'),

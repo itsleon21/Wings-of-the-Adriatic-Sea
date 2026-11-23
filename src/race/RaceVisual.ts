@@ -4,7 +4,7 @@ import type {RaceManager} from './RaceManager.ts';
 import {FlightGate} from '../missions/FlightGate.ts';
 export class RaceVisual{
  readonly root=new T.Group();
- private gates=raceCourse.map((point,i)=>new FlightGate(point,i===0?0xffc56b:0x73f1dc));
+ private gates=raceCourse.map((point,i)=>new FlightGate(point,i===0||i===raceCourse.length-1?0xffc56b:0x73f1dc));
  constructor(){
   this.root.name='Race / luminous course gates';
   const shape=new T.Shape();
@@ -31,25 +31,57 @@ export class RaceVisual{
  }
 }
 export class RaceFireworks{
- readonly points:T.Points;private clock=0;private playing=false;private positions:Float32Array;private velocities:Float32Array;private starts:Float32Array;
+ readonly points:T.Points;
+ private readonly bursts=Array.from({length:10},()=>new T.Vector3());
+ private readonly direction=new T.Vector3();
+ private readonly right=new T.Vector3();
+ private readonly origin=new T.Vector3();
+ private nextBurst=0;
+ private finish?:T.Vector3;
+ private clock=0;private playing=false;private positions:Float32Array;private velocities:Float32Array;private starts:Float32Array;
  constructor(){
-  const count=1440;this.positions=new Float32Array(count*3);this.velocities=new Float32Array(count*3);this.starts=new Float32Array(count);const color=new Float32Array(count*3),geo=new T.BufferGeometry();
-  for(let i=0;i<count;i++){const burst=Math.floor(i/120),a=i*2.39996,t=(i%120+.5)/120,y=1-2*t,r=Math.sqrt(1-y*y),speed=28+(i%9)*3;this.velocities.set([Math.cos(a)*r*speed,y*speed,Math.sin(a)*r*speed],i*3);this.starts[i]=burst*1.25;const c=new T.Color().setHSL((burst*.173)%1,1,.48);color.set([c.r*4,c.g*4,c.b*4],i*3);}
+  const count=this.bursts.length*120;this.positions=new Float32Array(count*3);this.velocities=new Float32Array(count*3);this.starts=new Float32Array(count);const color=new Float32Array(count*3),geo=new T.BufferGeometry();
+  for(let i=0;i<count;i++){const burst=Math.floor(i/120),a=i*2.39996,t=(i%120+.5)/120,y=1-2*t,r=Math.sqrt(1-y*y),speed=28+(i%9)*3;this.velocities.set([Math.cos(a)*r*speed,y*speed,Math.sin(a)*r*speed],i*3);this.starts[i]=Math.max(0,burst-1)*.42;const c=new T.Color().setHSL((burst*.173)%1,1,.48);color.set([c.r*4,c.g*4,c.b*4],i*3);}
   geo.setAttribute('position',new T.BufferAttribute(this.positions,3));geo.setAttribute('color',new T.BufferAttribute(color,3));geo.setAttribute('sparkAge',new T.BufferAttribute(new Float32Array(count),1));
   this.points=new T.Points(geo,new T.ShaderMaterial({transparent:true,depthWrite:false,vertexColors:true,blending:T.NormalBlending,vertexShader:`#include <common>
 #include <logdepthbuf_pars_vertex>
-attribute float sparkAge;varying float fade;varying vec3 tint;void main(){tint=color;fade=clamp(1.-sparkAge/3.8,0.,1.);vec4 p=modelViewMatrix*vec4(position,1.);gl_PointSize=clamp(4000./max(1.,-p.z),2.,7.);gl_Position=projectionMatrix*p;
+attribute float sparkAge;varying float fade;varying vec3 tint;void main(){tint=color;fade=clamp(1.-sparkAge/2.65,0.,1.);vec4 p=modelViewMatrix*vec4(position,1.);gl_PointSize=clamp(4000./max(1.,-p.z),2.,7.);gl_Position=projectionMatrix*p;
 #include <logdepthbuf_vertex>
 }`,fragmentShader:`#include <logdepthbuf_pars_fragment>
 varying float fade;varying vec3 tint;void main(){float d=length(gl_PointCoord-.5)*2.;if(d>1.)discard;gl_FragColor=vec4(tint*3.,pow(1.-d,.9)*sqrt(fade));
 #include <logdepthbuf_fragment>
 }`}));this.points.frustumCulled=false;this.points.visible=false;this.points.name='Race completion / fireworks';
  }
- start(){this.clock=0;this.playing=true;this.points.visible=true;}
+ get celebrating(){return this.playing;}
+ start(position:T.Vector3,heading:T.Vector3,winner=position){
+  this.finish=winner.distanceToSquared(position)>450**2?winner.clone():undefined;
+  this.origin.copy(position);this.direction.copy(heading).setY(0).normalize();
+  if(this.direction.lengthSq()<.01)this.direction.set(0,0,-1);
+  this.right.set(-this.direction.z,0,this.direction.x);
+  this.clock=0;this.nextBurst=0;this.playing=true;this.points.visible=true;
+  this.update(0,position);
+ }
  reset(){this.playing=false;this.points.visible=false;this.clock=0;}
- update(dt:number){if(!this.playing)return;this.clock+=dt;const age=this.points.geometry.attributes.sparkAge as T.BufferAttribute;
-  for(let i=0;i<this.starts.length;i++){const b=Math.floor(i/120),t=this.clock-this.starts[i],a=Math.max(0,t),active=t>=0&&t<3.8;this.positions[i*3]=raceCourse[raceCourse.length-1].position.x+(b%4-1.5)*160+this.velocities[i*3]*a;this.positions[i*3+1]=active?240+(b%3)*65+this.velocities[i*3+1]*a-7*a*a:-1000;this.positions[i*3+2]=raceCourse[raceCourse.length-1].position.z-450+(b%2)*120+this.velocities[i*3+2]*a;age.setX(i,active?a:4);}
-  this.points.geometry.attributes.position.needsUpdate=true;age.needsUpdate=true;if(this.clock>19)this.reset();
+ update(dt:number,position=this.origin){
+  if(!this.playing)return;
+  this.clock+=dt;
+  while(this.nextBurst<this.bursts.length&&this.clock>=this.starts[this.nextBurst*120]){
+   const b=this.nextBurst++,side=b%2===0?-1:1;
+   const anchor=b===1&&this.finish?this.finish:position;
+   this.bursts[b].copy(anchor).addScaledVector(this.direction,205+(b%3)*33).addScaledVector(this.right,side*(78+(b%4)*25));
+   this.bursts[b].y=Math.max(75,anchor.y+18+(b%3)*32);
+  }
+  const age=this.points.geometry.attributes.sparkAge as T.BufferAttribute;
+  for(let i=0;i<this.nextBurst*120;i++){
+   const center=this.bursts[Math.floor(i/120)],t=this.clock-this.starts[i],j=i*3;
+   this.positions[j]=center.x+this.velocities[j]*t;
+   this.positions[j+1]=center.y+this.velocities[j+1]*t-6*t*t;
+   this.positions[j+2]=center.z+this.velocities[j+2]*t;
+   age.setX(i,t);
+  }
+  this.points.geometry.setDrawRange(0,this.nextBurst*120);
+  this.points.geometry.attributes.position.needsUpdate=true;age.needsUpdate=true;
+  if(this.clock>this.starts.at(-1)!+2.65)this.reset();
  }
  dispose(){this.points.geometry.dispose();(this.points.material as T.Material).dispose();}
 }

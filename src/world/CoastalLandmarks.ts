@@ -61,17 +61,32 @@ export class CoastalLandmarks{
  }
  private windmill(site:CoastalLandmarkSite,group:T.Group,b:Builder,material:T.MeshStandardMaterial,height:(x:number,z:number)=>number,blockers:T.Box3[]){
   if(site.island==='town'){
-   const hero=site.id==='town-hill-mill',variant=site.style??0,h=hero?39:23+variant*1.3,r=hero?12:7+variant*.42;
+   const hero=site.id==='town-hill-mill',variant=site.style??0,h=hero?34:[17,14,21,16,18,23][variant],r=hero?15:[10,9,10.5,11,12,10][variant];
    const y=height(0,0),stone=0xd3c29d,plaster=[0xf2e5cb,0xe4d8bc,0xf4ead4][variant%3];
    b.add(new T.CylinderGeometry(r*1.23,r*1.43,6,16),stone,0,y-1,0);
-   b.add(new T.CylinderGeometry(r*.74,r,h,20),plaster,0,y+2+h/2,0);
+   const timberMill=!hero&&(variant===1||variant===3);
+   if(timberMill){
+    const sill=y+2+h*.28;
+    b.add(new T.CylinderGeometry(r*.76,r*1.08,h*.28,8),stone,0,y+2+h*.14,0);
+    b.box(0,sill+h*.36,0,r*1.55,h*.72,r*1.48,variant===1?0x806449:0x6f6951);
+    for(const side of [-1,1])b.beam(new T.Vector3(side*r*.7,sill,r*.75),new T.Vector3(-side*r*.7,sill+h*.65,r*.75),.38,.27,wood);
+   }else b.add(new T.CylinderGeometry(r*.74,r,h,variant===5?8:20),plaster,0,y+2+h/2,0);
    b.add(new T.CylinderGeometry(r*.79,r*.79,1,20),wood,0,y+h+2,0);
-   b.add(new T.ConeGeometry(r*.90,r*.98,16),[0x965930,0xa56943,0x834a32][variant%3],0,y+h+2+r*.49,0);
+   const capColor=[0x965930,0xa56943,0x834a32][variant%3];
+   if(timberMill){
+    for(const side of [-1,1]){
+     const tile=new T.BoxGeometry(r*1.03,.6,r*1.72).rotateZ(-side*.50);
+     b.add(tile,capColor,side*r*.43,y+h+2+r*.22,0);
+    }
+   }else if(variant===5&&!hero){
+    const dome=new T.SphereGeometry(1,12,6,0,Math.PI*2,0,Math.PI/2).scale(r*.86,r*.52,r*.86);
+    b.add(dome,capColor,0,y+h+2,0);
+   }else b.add(new T.ConeGeometry(r*.91,r*(hero?.94:.68),16),capColor,0,y+h+2+r*(hero?.47:.34),0);
    for(let i=0;i<4;i++){const a=i*1.57,ring=r*.835,g=new T.BoxGeometry(r*.24,2.8,.35);g.rotateY(a);b.add(g,0x433d33,Math.sin(a)*ring,y+h*.67,Math.cos(a)*ring);}
    b.box(0,y+3.5,r*.98,2.7,5,.5,wood);
    if(hero||variant%3===0){b.add(new T.CylinderGeometry(r*1.09,r*1.05,1,20),stone,0,y+6,0);}
    const shaft=r*.97,hy=y+h*.91;b.box(0,hy,shaft*.52,1.7,1.7,shaft*1.12,wood);
-   const rig=3+variant%3;group.userData.sailStyle=rig;group.userData.millFloor=y;
+   const rig=hero?3:timberMill?2:3+variant%3;group.userData.sailStyle=rig;group.userData.millFloor=y;
    const rotor=new T.Mesh(windmillSailGeometry(rig),material);rotor.name='Windmill / working sail axis';rotor.position.set(0,hy,shaft+1);rotor.scale.setScalar(h*.65);group.add(rotor);
    this.solid(site,blockers,0,y+h*.55,0,r*2,h*1.18,r*2);
    // Small vineyard strips, trained on timber uprights on the outer mill terraces.

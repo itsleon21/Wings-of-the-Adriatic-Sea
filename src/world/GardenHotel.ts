@@ -1,20 +1,22 @@
 import {buildHarborBoat} from './VesselModel.ts';
 import {LighthouseBeacon} from './LighthouseBeacon.ts';
+import {foliateCrown,cypressCrown} from './PlantGeometry.ts';
+import {roomGlass,tintGlass} from './WindowLight.ts';
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {hotelIsland,hotelScale,hotelWidthScale,hotelArchitectureWidth,hotelElevation,hotelOutline,insideHotel,random} from './WorldConfig.ts';
+import {hotelIsland,hotelScale,hotelWidthScale,hotelArchitectureWidth,hotelElevation,hotelPlan,hotelGardenX,insideHotel,random} from './WorldConfig.ts';
 /** Original Hotel Adriano, authored from the supplied five-view reference in metre units. */
 export class GardenHotel{
  private nightBoats=new T.Group();
- private beacon=new LighthouseBeacon();
+ private beacon=new LighthouseBeacon(550,170,.30);
  private lanterns=new T.MeshStandardMaterial({color:0xffe3b3,emissive:0xffb65e,emissiveIntensity:0});
  private lightPools=new T.MeshBasicMaterial({color:0xffb560,transparent:true,opacity:0,depthWrite:false});
- readonly root=new T.Group();private windows=new T.MeshStandardMaterial({color:0x54706c,roughness:.28,metalness:.12,emissive:0xffc57c});
+ readonly root=new T.Group();private windows=roomGlass(new T.MeshStandardMaterial({color:0x54706c,roughness:.28,metalness:.12}));
  constructor(blockers:T.Box3[]){
-  const d=hotelIsland,rng=random(d.seed),batches=new Map<T.Material,T.BufferGeometry[]>();this.root.name='Garden Hotel / villa, sea walls and flowering garden';this.root.position.set(d.x,0,d.z);this.root.scale.setScalar(hotelScale);
+  const d=hotelIsland,rng=random(d.seed),batches=new Map<T.Material,T.BufferGeometry[]>();this.root.name='Garden Hotel / villa, sea walls and flowering garden';this.root.position.set(d.x,0,d.z);this.root.rotation.y=Math.PI/2;this.root.scale.setScalar(hotelScale);
   const mat=(color:number,roughness=.88)=>new T.MeshStandardMaterial({color,roughness});
   const stone=mat(0xc5b798),trim=mat(0xe5dbc1),plaster=mat(0xe6d9b9),roof=mat(0xa95130),wood=mat(0x8c724f),iron=mat(0x46574d,.55),lawn=mat(0x879363),copper=mat(0x6f8865,.56),shadow=mat(0x354b45),water=mat(0x669c91,.25);
-  stone.color.setHex(0xf2e6cc);stone.map=stoneTexture();roof.map=roofTexture();roof.bumpMap=roof.map;roof.bumpScale=.15;roof.color.setHex(0xffffff);roof.userData.architecture=true;plaster.userData.architecture=true;
+  stone.color.setHex(0xf2e6cc);stone.map=stoneTexture();stone.bumpMap=stone.map;stone.bumpScale=.19;roof.map=roofTexture();roof.bumpMap=roof.map;roof.bumpScale=.15;roof.color.setHex(0xffffff);roof.userData.architecture=true;plaster.userData.architecture=true;
   const shutters=mat(0xd3c3a1);
   const foliage=[0x3e5931,0x516c36,0x667b3e,0x7f8a47,0x4b6a48,0x8b9858].map(c=>mat(c));
   const flowers=[0xe6c6d5,0xd0b3dc,0xf1e4c0,0xd7bc69,0xe2a6ae,0xadbbd3].map(c=>mat(c));
@@ -23,12 +25,12 @@ export class GardenHotel{
   const add=(geo:T.BufferGeometry,m:T.Material,x=0,y=0,z=0,r=new T.Euler())=>{
    geo.applyMatrix4(new T.Matrix4().compose(new T.Vector3(x,y,z),new T.Quaternion().setFromEuler(r),new T.Vector3(1,1,1)));
    const positions=geo.getAttribute('position');
-   for(let i=0;i<positions.count;i++)positions.setXYZ(i,positions.getX(i)*(architecture?hotelArchitectureWidth:hotelWidthScale),hotelElevation(positions.getY(i)),positions.getZ(i));
+   for(let i=0;i<positions.count;i++)positions.setXYZ(i,hotelGardenX(positions.getX(i)*(architecture?hotelArchitectureWidth:hotelWidthScale),positions.getZ(i)),hotelElevation(positions.getY(i)),positions.getZ(i));
    geo.computeVertexNormals();
    if(geo.index){const name=geo.name,g=geo.toNonIndexed();g.name=name;geo.dispose();geo=g;}
    const p=geo.attributes.position,n=geo.attributes.normal,uv=new Float32Array(p.count*2);
    for(let i=0;i<p.count;i++){const nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));uv[i*2]=(nx>nz?p.getZ(i):p.getX(i))*.05;uv[i*2+1]=(ny>.7?p.getZ(i):p.getY(i))*.05;}
-   geo.setAttribute('uv',new T.BufferAttribute(uv,2));if(geo.name){const mesh=new T.Mesh(geo,m);mesh.name=geo.name;mesh.castShadow=mesh.receiveShadow=true;this.root.add(mesh);return;}const parts=batches.get(m)??[];parts.push(geo);batches.set(m,parts);
+   geo.setAttribute('uv',new T.BufferAttribute(uv,2));if(m===this.windows)tintGlass(geo,x*37+y*11+z*7);if(geo.name){const mesh=new T.Mesh(geo,m);mesh.name=geo.name;mesh.castShadow=mesh.receiveShadow=true;this.root.add(mesh);return;}const parts=batches.get(m)??[];parts.push(geo);batches.set(m,parts);
   };
   const box=(m:T.Material,x:number,y:number,z:number,w:number,h:number,l:number,rot=0)=>add(new T.BoxGeometry(w,h,l),m,x,y,z,new T.Euler(0,rot,0));
   const cyl=(m:T.Material,x:number,y:number,z:number,r:number,h:number,r2=r,n=12)=>add(new T.CylinderGeometry(r,r2,h,n),m,x,y,z);
@@ -36,7 +38,7 @@ export class GardenHotel{
   const hip=(x:number,y:number,z:number,w:number,l:number,h:number)=>{const v=[-w/2,0,-l/2,w/2,0,-l/2,w/2,0,l/2,-w/2,0,l/2,0,h,-l*.28,0,h,l*.28],ids=[0,4,1,1,4,5,1,5,2,2,5,3,3,5,4,3,4,0];const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(ids.flatMap(i=>v.slice(i*3,i*3+3)),3));g.computeVertexNormals();g.name=`Hotel pitched roof ${x}/${y}/${z}`;add(g,roof,x,y,z);};
   const balustrade=(x:number,z:number,length:number,alongX=true,y=29)=>{box(trim,x,y+1.7,z,alongX?length:1.2,.65,alongX?1.2:length);box(trim,x,y-1.5,z,alongX?length:1.4,.6,alongX?1.4:length);for(let i=0;i<=length/2.6;i++){const t=-length/2+i*2.6;const xx=x+(alongX?t:0),zz=z+(alongX?0:t);cyl(trim,xx,y,zz,.32,2.7,.44,7);cyl(trim,xx,y+.8,zz,.48,.5,.36,7);}};
   // Narrow frontage, long garden plot. Retaining walls follow an asymmetric, stepped garden perimeter.
-  const outline=hotelOutline.map(([x,z])=>[x/hotelWidthScale,z]);
+  const outline=hotelPlan;
   const shape=new T.Shape();outline.forEach(([x,z],i)=>i?shape.lineTo(x,-z):shape.moveTo(x,-z));shape.closePath();const podium=new T.ExtrudeGeometry(shape,{depth:33,bevelEnabled:false});podium.rotateX(-Math.PI/2);add(podium,stone,0,-6,0);
   const deck=new T.ShapeGeometry(shape);deck.rotateX(-Math.PI/2);add(deck,trim,0,27.04,0);
   // Seaward retaining wall has a moulded cornice, corner piers, grilles and hanging ivy.
@@ -50,6 +52,25 @@ export class GardenHotel{
    }
    box(stone,ax,11,az,4,32,4);box(trim,ax,29.5,az,5,1.2,5);
   }
+  // Battered masonry ribs grow out of the sea wall and stop at the coping.
+  const wallStone=mat(0xd3c7ab);wallStone.map=stone.map;
+  for(let i=0;i<outline.length;i++){
+   const [ax,az]=outline[i],[bx,bz]=outline[(i+1)%outline.length];
+   const len=Math.hypot(bx-ax,bz-az),nx=(bz-az)/len,nz=(ax-bx)/len;
+   const bays=Math.max(1,Math.round(len/48));
+   for(let j=0;j<bays;j++){
+    const t=(j+.28)/bays,x=ax+(bx-ax)*t,z=az+(bz-az)*t;
+    if(x>119&&z>105||az===190&&Math.abs(x-45)<13)continue;
+    const g=new T.BoxGeometry(4.1,28,1),v=g.attributes.position;
+    for(let k=0;k<v.count;k++){
+     const u=v.getX(k),h=v.getY(k)+13,reach=(v.getZ(k)+.5)*(1.0+3.7*(26-h)/28);
+     v.setXYZ(k,x+u*(bx-ax)/len+nx*reach,h,z+u*(bz-az)/len+nz*reach);
+    }
+    g.computeVertexNormals();add(g,wallStone);
+   }
+  }
+  box(plaster,116,32.5,107,12,11,16);hip(116,38,107,14,18,7);
+  arch(wood,116,27.2,115.25,4.8,8);
   arch(trim,45,-1,190.65,17,12);arch(iron,45,-.5,191.02,14,10.5);for(let x=39;x<=51;x+=1.4)box(iron,x,4,191.5,.22,9,.25);
   // Close-fitting timber boardwalk; one side staircase climbs all the way from the sea.
   box(wood,0,5.67,198,268,.65,9);box(wood,129,5.67,78,9,.65,231);box(wood,-110,5.67,218.75,9,.65,32.5);
@@ -104,13 +125,19 @@ export class GardenHotel{
   // One connected villa at the seaward end; every elevation uses the same coordinates.
   // Storeys 27–43–59–75, roof ridge 95; the tower shaft starts at the foundation.
   box(plaster,0,51,104,114,48,84);box(trim,0,28,104,118,2,88);
-  hip(0,75,104,122,92,32);
+  // Broad hipped street roof, ridge parallel to the front elevation.
+  const mainRoof=new T.BufferGeometry();
+  const eaves=[[-61,75,58],[61,75,58],[61,75,150],[-61,75,150]],ridge=[[-39,105,104],[39,105,104]];
+  const roofVertices=[...eaves,...ridge],faces=[0,4,1,1,4,5,1,5,2,2,5,4,2,4,3,3,4,0];
+  mainRoof.setAttribute('position',new T.Float32BufferAttribute(faces.flatMap(i=>roofVertices[i]),3));mainRoof.computeVertexNormals();
+  mainRoof.name='Hotel pitched roof 0/75/104';add(mainRoof,roof);
+  box(roof,0,105.3,104,79,.9,1.45);
   // Rear cross-wing touches the main block, rather than a collection of detached roofs.
   box(plaster,12,47,42,90,40,48);hip(12,67,42,98,56,24);
   box(plaster,-35,37,46,35,20,50);hip(-35,47,46,41,56,10);
   // Entrance porch on the garden side, grounded on the same terrace.
   box(plaster,12,34,13,23,14,15);hip(12,41,13,29,21,9);
-  for(const y of [28,43,59,75]){
+  for(const y of [28,50,74.6]){
    box(trim,0,y,146.3,115,.7,1.4);
    for(const side of [-1,1])box(trim,side*57.3,y,104,1.4,.7,84);
   }
@@ -121,8 +148,8 @@ export class GardenHotel{
    box(trim,x,y+h*.5,147.55,.3,h-.5,.25);box(trim,x,y+h*.62,147.55,w,.25,.25);
    for(const side of [-1,1])box(shutters,x+side*(w/2+1.8),y+h*.47,147.3,2,h-.2,.45);
   };
-  for(const x of [-43,-27,27,43])for(const y of [30,46,62])frontWindow(x,y);
-  for(const side of [-1,1])for(const z of [76,96,118,136])for(const y of [30,46,62]){
+  for(const x of [-44,-28,28,44])for(const y of [30,54])frontWindow(x,y,7.8,14);
+  for(const side of [-1,1])for(const z of [76,96,118,136])for(const y of [30,54]){
    arch(trim,side*57.3,y,z,8.4,11.1,side*Math.PI/2);
    arch(this.windows,side*57.65,y+.7,z,6.8,9.8,side*Math.PI/2);
    box(trim,side*58.2,y+.3,z,1.9,.65,9.6);
@@ -138,7 +165,7 @@ export class GardenHotel{
   }
   arch(trim,0,27.3,147,16,20);arch(wood,0,28,147.4,13.6,18.4);
   arch(shadow,0,30,147.8,10,14);box(trim,0,37,148,.4,16,.3);
-  frontWindow(0,48,12,19);frontWindow(0,77,6,10);
+  frontWindow(0,50,13,18);
   // Central curved gable is tied to the facade and supported by the main wall.
   const gable=new T.Shape();gable.moveTo(-14,0);gable.lineTo(14,0);
   gable.bezierCurveTo(12,8,7,8,7,15);gable.bezierCurveTo(7,22,4,26,0,27);
@@ -149,13 +176,42 @@ export class GardenHotel{
    box(trim,0,y,150.5,17,1.2,8);balustrade(0,154,17,true,y+2.7);
    for(const x of [-6,6])box(stone,x,y-1.8,149.5,1.4,3.4,3);
   }
+  for(const x of [-8.6,8.6]){
+   box(trim,x,51,147.9,1.65,47,2.9);
+   for(const y of [28.4,47,72.8])box(stone,x,y,148.2,2.7,1.2,3.4);
+  }
   // Dormer boxes intersect the sloping roof, avoiding buried or floating ornaments.
   for(const x of [-34,34]){
-   box(plaster,x,90,138,10,14,11);hip(x,97,138,13,14,5);
-   arch(trim,x,87,143.7,6.4,8.2);arch(this.windows,x,87.6,144.1,5,7);
+   const faceZ=134,base=84;
+   box(plaster,x,base+3,faceZ-6,10,9,12);
+   const pediment=new T.Shape();pediment.moveTo(-5,0);pediment.lineTo(5,0);pediment.lineTo(0,6);pediment.closePath();
+   add(new T.ExtrudeGeometry(pediment,{depth:12,bevelEnabled:false}),plaster,x,base+7.5,faceZ-12);
+   for(const side of [-1,1]){
+    const slope=new T.BoxGeometry(8.6,.7,14).rotateZ(-side*.84);
+    add(slope,roof,x+side*2.7,base+10.7,faceZ-5.8);
+   }
+   arch(trim,x,base+.5,faceZ+.25,6.8,9.3);arch(this.windows,x,base+1,faceZ+.65,5.2,8);
+
   }
-  for(const [x,z] of [[-39,93],[39,93],[-20,39],[44,39]]){
-   box(stone,x,84,z,2.7,17,3);box(trim,x,92.7,z,3.8,.8,4);
+  // The chimney feet penetrate the slopes; weathering bands sit above the flashed joint.
+  for(const [x,z,top] of [[-40,96,107.5],[37,111,109],[-20,39,92],[44,39,85]]){
+   box(stone,x,top-8,z,2.8,16,3.3);box(roof,x,top-.4,z,3.7,.8,4.1);cyl(wood,x,top+1.1,z,.92,2.4);
+  }
+  const hipEnds=[[-61,75,58,-39,105,104],[-61,75,150,-39,105,104],[61,75,58,39,105,104],[61,75,150,39,105,104]];
+  for(const [ax,ay,az,bx,by,bz] of hipEnds){
+   const start=new T.Vector3(ax,ay,az),end=new T.Vector3(bx,by,bz),line=end.clone().sub(start);
+   const cap=new T.CylinderGeometry(.72,.72,line.length(),8);
+   cap.applyQuaternion(new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),line.normalize()));
+   add(cap,roof,(ax+bx)/2,(ay+by)/2+.35,(az+bz)/2);
+  }
+  // A recessed double door and segmented limestone arch give the central bay depth.
+  for(const x of [-2.4,2.4]){
+   box(wood,x,33.7,148.1,4.4,11.3,.45);
+   box(iron,x>0?1:-1,34.2,148.48,.25,1.7,.32);
+  }
+  for(let k=0;k<11;k++){
+   const a=(k+.5)*Math.PI/11,cut=new T.BoxGeometry(2.0,1.15,.85).rotateZ(a-Math.PI/2);
+   add(cut,trim,Math.cos(a)*7.25,39.2+Math.sin(a)*7.25,148.2);
   }
   // Structural tower: a continuous shaft from terrace to belfry, penetrating the roof.
   const towerX=0,towerZ=119;
@@ -177,6 +233,13 @@ export class GardenHotel{
   }
   cyl(trim,0,123,119,7.7,1.4,7.7,16);
   for(let i=0;i<8;i++){const a=i*Math.PI/4;cyl(trim,Math.cos(a)*5.3,127.5,119+Math.sin(a)*5.3,.55,8);}
+  // Visible bell and arched lintels connect the open lantern columns to the dome.
+  cyl(iron,0,126,119,1.25,3,2.65,16);
+  for(let i=0;i<8;i++){
+   const a=(i+.5)*Math.PI/4;
+   const archRib=new T.TorusGeometry(1.97,.28,5,12,Math.PI);
+   archRib.rotateY(a);add(archRib,trim,Math.sin(a)*4.9,129.2,119+Math.cos(a)*4.9);
+  }
   cyl(trim,0,131.5,119,7.7,1,7.7,16);
   add(new T.SphereGeometry(7.3,24,16,0,Math.PI*2,0,Math.PI/2),copper,0,132,119);
   cyl(iron,0,141,119,.18,5);add(new T.SphereGeometry(.6,12,8),trim,0,143.7,119);
@@ -186,9 +249,13 @@ export class GardenHotel{
   // Front terrace is intimate: two striped parasols, cafe tables, lawns and climbing vines.
   const awnings=[mat(0xce6845),mat(0x76a8ab)],ivory=mat(0xf0e6c7);
   for(const [x,z,k]of[[-20,172,0],[30,174,1]]){cyl(wood,x,29.5,z,.4,4);cyl(trim,x,30,z,3,.5);cyl(wood,x,33,z,.12,9);for(let j=0;j<12;j++){const g=new T.ConeGeometry(6,2.4,1,1,true,j/12*Math.PI*2,Math.PI/6);add(g,j%2?ivory:awnings[k],x,37.3,z);}for(const side of[-1,1])box(wood,x+side*4.7,29,z,1.8,2.5,1.8);}
-  box(lawn,-64,27.3,141,35,.5,48);box(lawn,64,27.3,144,32,.5,45);
+  box(lawn,-85,27.3,141,24,.5,48);box(lawn,85,27.3,144,23,.5,45);
   // Rear garden is a dense, irregular botanical composition, with linked paths and planted edges.
-  box(lawn,0,27.25,-104,194,.4,146);
+  // Inset garden floor follows the stepped sea-wall outline, leaving a pale coping walk.
+  const gardenShape=new T.Shape();
+  const gardenRim=[[-88,-183],[78,-183],[92,-147],[108,-105],[96,-62],[100,-30],[86,-5],[-89,-5],[-104,-30],[-88,-58],[-96,-110]];
+  gardenRim.forEach(([x,z],i)=>i?gardenShape.lineTo(x,-z):gardenShape.moveTo(x,-z));gardenShape.closePath();
+  const gardenFloor=new T.ShapeGeometry(gardenShape);gardenFloor.rotateX(-Math.PI/2);add(gardenFloor,lawn,0,27.35,0);
   const pathSamples:T.Vector3[]=[];
   const gardenPath=(points:number[][],width=5)=>{
    const curve=new T.CatmullRomCurve3(points.map(([x,z])=>new T.Vector3(x,27.6,z)));
@@ -203,44 +270,64 @@ export class GardenHotel{
   };
   gardenPath([[12,3],[0,-24],[-28,-59],[8,-94],[32,-132],[8,-175]],6);
   gardenPath([[-92,-150],[-55,-135],[0,-118],[55,-104],[94,-125]]);
-  gardenPath([[-28,-59],[-73,-76],[-75,-125],[-55,-163]]);
+  gardenPath([[-28,-59],[-73,-76],[-75,-125],[-55,-163],[-19,-155],[8,-175]],5.4);
+  gardenPath([[55,-104],[69,-134],[48,-156],[8,-175]],4.6);
   gardenPath([[0,-24],[59,-54],[74,-77],[55,-104]]);
 
-  const bush=(x:number,z:number,r:number,m:T.Material,y=28)=>{const g=new T.IcosahedronGeometry(1,0);g.scale(r,1.1+r*.45,r*.85);add(g,m,x,y,z);};
-  for(let i=0;i<360;i++){
+  const bush=(x:number,z:number,r:number,m:T.Material,y=28)=>{const g=foliateCrown(Math.abs(Math.round(x+z))%5,6);g.scale(r,1.1+r*.45,r*.85);add(g,m,x,y,z);};
+  for(let i=0;i<255;i++){
    const x=(rng()-.5)*190,z=-177+rng()*121;if(pathSamples.some(p=>Math.hypot(p.x-x,p.z-z)<7))continue;
+   if(!insideHotel(hotelGardenX(x*hotelWidthScale,z),z))continue;
    const edge=Math.abs(x)>77||z< -148||z> -77;const r=2.3+rng()*3.6;bush(x,z,r,foliage[i%foliage.length],28+r*.2);
    if(edge||i%3===0)for(let j=0;j<3;j++)bush(x+(rng()-.5)*r*1.7,z+(rng()-.5)*r*1.7,1.9+rng()*1.8,flowers[(Math.floor((z+180)/29)+Math.floor((x+110)/43)+j%2)%flowers.length],30+r*.5+rng());
   }
   // Natural flowering trees: uneven crowns and a shaded rear grove, no evenly spaced orchard rows.
-  const tree=(x:number,z:number,h:number,bloom=false)=>{cyl(wood,x,27+h*.30,z,.5,h*.6,.85,7);for(let j=0;j<10;j++){const a=rng()*6.28,r=rng()*6;const g=new T.IcosahedronGeometry(1,1);g.scale(3+rng()*3.7,2.5+rng()*3.5,3+rng()*3.7);add(g,bloom&&j%3===0?flowers[j%flowers.length]:foliage[Math.floor(rng()*foliage.length)],x+Math.cos(a)*r,27+h-4+rng()*5,z+Math.sin(a)*r);}};
+  const tree=(x:number,z:number,h:number,bloom=false)=>{cyl(wood,x,27+h*.36,z,.5,h*.72,.85,7);for(let j=0;j<8;j++){const a=rng()*6.28,r=rng()*6;const g=foliateCrown(j%6,8);g.scale(3+rng()*3.7,2.5+rng()*3.5,3+rng()*3.7);add(g,bloom&&j%3===0?flowers[j%flowers.length]:foliage[Math.floor(rng()*foliage.length)],x+Math.cos(a)*r,27+h-4+rng()*5,z+Math.sin(a)*r);}};
   for(const [cx,cz] of [[-62,-145],[55,-90],[70,-154],[-78,-66]]){
-   for(let j=0;j<10;j++){
+   for(let j=0;j<6;j++){
     const angle=rng()*Math.PI*2, radius=Math.sqrt(rng())*28;
     const x=cx+Math.cos(angle)*radius,z=cz+Math.sin(angle)*radius;
-    if(!pathSamples.some(p=>Math.hypot(p.x-x,p.z-z)<9)) tree(x,z,12+rng()*15,j%4===0);
+    if(insideHotel(hotelGardenX(x*hotelWidthScale,z),z)&&!pathSamples.some(p=>Math.hypot(p.x-x,p.z-z)<9)) tree(x,z,12+rng()*15,j%4===0);
    }
   }
   const sites=[[-88,-155],[-59,-162],[-29,-152],[22,-162],[68,-151],[94,-131],[-91,-111],[-72,-81],[-101,-40],[91,-70],[-96,35],[91,40],[-86,114],[82,115],[-85,158],[75,163]];
   sites.forEach(([x,z],i)=>tree(x+(rng()-.5)*8,z+(rng()-.5)*8,13+rng()*13,i%4===0));
+  // Broad crowns interlock along the back wall; the middle stays open around the walks.
+  for(const [x,z,r] of [[-69,-164,12],[-39,-168,10],[17,-164,13],[57,-159,11],[75,-111,10],
+   [-79,-105,12],[-83,-81,9],[80,-77,10],[-79,-27,11],[76,5,10],[-91,134,11],[84,131,12]]){
+   cyl(wood,x,33,z,.75,12,1.25,8);
+   for(let j=0;j<4;j++){
+    const a=j*2.4+x*.16,g=foliateCrown(j+1,9);g.scale(r*.91,r*(j===0?.90:.65),r);
+    add(g,foliage[(j+Math.abs(x))%5],x+Math.cos(a)*r*.46,40+(j===0?4:Math.sin(a)*2),z+Math.sin(a)*r*.42);
+   }
+  }
   // Tall cypresses frame the roof and extend through the side garden, like the reference silhouette.
-  for(const [x,z,h]of[[-70,82,95],[-83,58,69],[70,67,83],[83,21,66],[-53,-48,47],[61,-97,52],[-80,-136,39]]){
+  for(const [x,z,h]of[[-71,89,109],[-82,59,76],[70,73,119],[83,21,77],[-61,-28,68],[65,-61,79],[-65,-87,58],[57,-136,66],[-79,-145,43]]){
    // Position at the edge of the narrowed strip, clear of the unscaled facade.
    const px=z>0?Math.sign(x)*Math.max(Math.abs(x),92):x;
    cyl(wood,px,27+h*.075,z,.45,h*.15,.75,7);
-   const crown=new T.ConeGeometry(7.0,h*.93,18,16);
-   const vertices=crown.getAttribute('position');
-   for(let k=0;k<vertices.count;k++){
-    const f=(vertices.getY(k)+h*.465)/(h*.93),a=Math.atan2(vertices.getZ(k),vertices.getX(k));
-    const ripple=1+.045*Math.sin(a*5+f*11)+.025*Math.sin(a*9-f*15);
-    vertices.setX(k,vertices.getX(k)*ripple);vertices.setZ(k,vertices.getZ(k)*ripple);
-   }
-   crown.computeVertexNormals();add(crown,foliage[0],px,27+h*.53,z);
+   const crown=cypressCrown();
+   crown.scale(6.1+h*.033,h*.95,5.6+h*.027).rotateY(x*.37);add(crown,foliage[0],px,27+h*.065,z);
 
   }
   // Side borders, ivy spilling over wall copings and a private garden pavilion.
   for(let i=0;i<140;i++){const side=i%2?1:-1,z=-171+rng()*340,x=side*(z< -45?94+rng()*5:108+rng()*7);bush(x,z,2+rng()*3,foliage[i%foliage.length],28);if(i%2===0)bush(x,z,1+rng(),flowers[i%flowers.length],31);}
-  for(let i=0;i<210;i++){const front=i%3===0,side=i%2?1:-1,x=front?-98+rng()*196:side*124,z=front?190.9:5+rng()*155,hang=rng()*17;if(front&&((x>13&&x<52)||Math.abs(x+3)<4))continue;const g=new T.IcosahedronGeometry(1,0);g.scale(front?1.2+rng()*2:.5,1.5+rng()*2.8,front?.5:1.2+rng()*2);add(g,foliage[i%foliage.length],x,26-hang,z);if(front){for(let k=0;k<4;k++){const bloom=new T.IcosahedronGeometry(1,0);bloom.scale(.85,.72,.42);add(bloom,flowers[(i+Math.floor(k/3))%flowers.length],x+(k%2-.5)*1.4,26-hang+Math.floor(k/2)*1.15,z+.65);}}}
+  for(let i=0;i<outline.length;i++){
+   const [ax,az]=outline[i],[bx,bz]=outline[(i+1)%outline.length],len=Math.hypot(bx-ax,bz-az);
+   const front=az===190&&bz===190;
+   for(let j=0;j<Math.floor(len/12);j++){
+    const t=rng(),x=ax+(bx-ax)*t,z=az+(bz-az)*t,nx=(bz-az)/len,nz=(ax-bx)/len;
+    if(front&&Math.abs(x-34)<25||x>120&&z>110)continue;
+    const fall=4+12*rng(),tufts=Math.ceil(fall/2);
+    for(let k=0;k<tufts;k++){
+     const u=k/tufts,sway=Math.sin(u*3+j)*1.3;
+     const leaf=new T.IcosahedronGeometry(1,0);leaf.scale((1-u*.7)*2.5,2.1,(1-u*.7)*2);
+     const xx=x+nx*.65+(bx-ax)/len*sway,zz=z+nz*.65+(bz-az)/len*sway;
+     add(leaf,foliage[(i+j+k%2)%foliage.length],xx,27.8-u*fall,zz);
+     if(front&&k%3===0)bush(xx+nx,zz+nz,1.05,flowers[j%flowers.length],28-u*fall);
+    }
+   }
+  }
   architecture=true;
   for(let i=0;i<38;i++){const x=(rng()-.5)*108,y=31+rng()*42;if(Math.abs(x)<10||Math.abs((x+5)%13)<4)continue;const g=new T.IcosahedronGeometry(1,0);g.scale(1+rng(),1.6+rng()*2,.35);add(g,foliage[i%foliage.length],x,y,147.95);}
   architecture=false;
@@ -256,7 +343,7 @@ export class GardenHotel{
   for(const [x,z] of [[-4,-162],[4,-138],[-4,-98],[4,-74],[-75,-114],[-38,-122],[40,-114],[76,-122],[-18,168],[25,168],[-94,135],[94,135],[-94,84],[94,84],[-94,28],[94,28],[-38,-8],[38,-8]]){
    cyl(iron,x,30,z,.28,5);cyl(this.lanterns,x,33,z,.85,1.7,.65,8);
    add(new T.ConeGeometry(1.15,.8,8),iron,x,34.3,z);
-   const pool=new T.Mesh(new T.PlaneGeometry(22,22),this.lightPools);pool.rotation.x=-Math.PI/2;pool.position.set(x*hotelWidthScale,hotelElevation(27.8),z);this.root.add(pool);
+   const pool=new T.Mesh(new T.PlaneGeometry(22,22),this.lightPools);pool.rotation.x=-Math.PI/2;pool.position.set(hotelGardenX(x*hotelWidthScale,z),hotelElevation(27.8),z);this.root.add(pool);
   }
   // Italian seafront details use the same terrace coordinates, elevation and material batches.
   const terracotta=mat(0xad5e3c),potRim=mat(0xc57b4f),soil=mat(0x51412c),lemon=mat(0xe6be44,.52),vineLeaf=mat(0x55713a),bougainvillea=mat(0xba6887),ceramic=mat(0x71999a,.58);
@@ -281,10 +368,11 @@ export class GardenHotel{
   for(let i=0;i<9;i++){const z=pz-12+i*3;add(new T.SphereGeometry(.26,7,5),this.lanterns,px,34.15-Math.sin(i/8*Math.PI)*.8,z);}
   // A modest tricolour at the working jetty, with a softly curved cloth silhouette.
   cyl(iron,-128,14.95,198,.18,18,.28,8);add(new T.SphereGeometry(.32,8,6),trim,-128,24.1,198);
+  const flagHem=23-12*hotelWidthScale/1.5/(hotelElevation(20)-hotelElevation(19));
   const flagPositions:number[]=[],flagColors:number[]=[],flagPalette=[new T.Color(0x347953),new T.Color(0xece6d5),new T.Color(0xba4e40)];
   for(let stripe=0;stripe<3;stripe++)for(let j=0;j<6;j++){
    const x0=-128+stripe*4+j*4/6,x1=x0+4/6,cloth=(x:number,y:number)=>[x,y,198+Math.sin((x+128)*.45)*.7];
-   for(const [x,y] of[[x0,23],[x0,15.6],[x1,23],[x1,23],[x0,15.6],[x1,15.6]]){flagPositions.push(...cloth(x,y));flagColors.push(...flagPalette[stripe].toArray());}
+   for(const [x,y] of[[x0,23],[x0,flagHem],[x1,23],[x1,23],[x0,flagHem],[x1,flagHem]]){flagPositions.push(...cloth(x,y));flagColors.push(...flagPalette[stripe].toArray());}
   }
   const flag=new T.BufferGeometry();flag.setAttribute('position',new T.Float32BufferAttribute(flagPositions,3));flag.setAttribute('color',new T.Float32BufferAttribute(flagColors,3));flag.computeVertexNormals();flag.name='Hotel / Italian tricolour at jetty';add(flag,new T.MeshStandardMaterial({vertexColors:true,roughness:.9,side:T.DoubleSide}));
   const paving=new T.BoxGeometry(22,.35,30);paving.name='Hotel / vine pergola garden paving';add(paving,trim,px,27.35,pz);
@@ -295,16 +383,20 @@ export class GardenHotel{
   const oval=new T.CircleGeometry(1,40);oval.scale(15,6,1);add(oval,trim,32,18,191.1);
   for(const [material,parts]of batches){const geometry=mergeGeometries(parts,false)!;parts.forEach(g=>g.dispose());const mesh=new T.Mesh(geometry,material);mesh.castShadow=!flowers.includes(material as T.MeshStandardMaterial);mesh.receiveShadow=true;this.root.add(mesh);}
   if(typeof document!=='undefined'){
-   const cafe=document.createElement('canvas');cafe.width=384;cafe.height=320;const cc=cafe.getContext('2d')!;cc.fillStyle='#eee3c8';cc.fillRect(0,0,384,320);cc.fillStyle='#46564c';cc.textAlign='center';cc.font='italic 46px Georgia';cc.fillText('Caffè',192,110);cc.fillText('Adriano',192,173);cc.font='23px Georgia';cc.fillText('espresso · limonata',192,246);const cafeTexture=new T.CanvasTexture(cafe);cafeTexture.colorSpace=T.SRGBColorSpace;const cafeSign=new T.Mesh(new T.PlaneGeometry(3.65*hotelWidthScale,3.55*1.2),new T.MeshStandardMaterial({map:cafeTexture,roughness:.85}));cafeSign.name='Hotel / Caffè Adriano terrace menu';cafeSign.position.set(-46*hotelWidthScale,hotelElevation(29.3),184.31);this.root.add(cafeSign);
-   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=192;const ctx=canvas.getContext('2d')!;ctx.clearRect(0,0,512,192);ctx.fillStyle='#594732';ctx.font='italic 58px Georgia';ctx.textAlign='center';ctx.fillText('Hotel',256,79);ctx.fillText('Adriano',256,141);const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;const sign=new T.Mesh(new T.PlaneGeometry(28*hotelWidthScale,10.5*21/27),new T.MeshStandardMaterial({map:texture,transparent:true,depthWrite:false,roughness:.85}));sign.position.set(32*hotelWidthScale,hotelElevation(18),191.16);this.root.add(sign);
+   const cafe=document.createElement('canvas');cafe.width=384;cafe.height=320;const cc=cafe.getContext('2d')!;cc.fillStyle='#eee3c8';cc.fillRect(0,0,384,320);cc.fillStyle='#46564c';cc.textAlign='center';cc.font='italic 46px Georgia';cc.fillText('Caffè',192,110);cc.fillText('Adriano',192,173);cc.font='23px Georgia';cc.fillText('espresso · limonata',192,246);const cafeTexture=new T.CanvasTexture(cafe);cafeTexture.colorSpace=T.SRGBColorSpace;const cafeSign=new T.Mesh(new T.PlaneGeometry(3.65*hotelWidthScale,3.55*.90),new T.MeshStandardMaterial({map:cafeTexture,roughness:.85}));cafeSign.name='Hotel / Caffè Adriano terrace menu';cafeSign.position.set(-46*hotelWidthScale,hotelElevation(29.3),184.31);this.root.add(cafeSign);
+   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=192;const ctx=canvas.getContext('2d')!;ctx.clearRect(0,0,512,192);ctx.fillStyle='#594732';ctx.font='italic 58px Georgia';ctx.textAlign='center';ctx.fillText('Hotel',256,79);ctx.fillText('Adriano',256,141);const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;const sign=new T.Mesh(new T.PlaneGeometry(28*hotelWidthScale,hotelElevation(23.25)-hotelElevation(12.75)),new T.MeshStandardMaterial({map:texture,transparent:true,depthWrite:false,roughness:.85}));sign.position.set(32*hotelWidthScale,hotelElevation(18),191.16);this.root.add(sign);
   }
-  const bounds=(x:number,y:number,z:number,w:number,h:number,l:number)=>blockers.push(new T.Box3(new T.Vector3(d.x+(x-w/2)*hotelScale,hotelElevation(y-h/2)*hotelScale,d.z+(z-l/2)*hotelScale),new T.Vector3(d.x+(x+w/2)*hotelScale,hotelElevation(y+h/2)*hotelScale,d.z+(z+l/2)*hotelScale)));
+  this.root.updateMatrixWorld(true);
+  const bounds=(x:number,y:number,z:number,w:number,h:number,l:number)=>blockers.push(new T.Box3(
+   new T.Vector3(x-w/2,hotelElevation(y-h/2),z-l/2),
+   new T.Vector3(x+w/2,hotelElevation(y+h/2),z+l/2),
+  ).applyMatrix4(this.root.matrixWorld));
   for(let z=-187;z<190;z+=6){let min=125,max=-125;for(let x=-125;x<=125;x++)if(insideHotel(x*hotelWidthScale,z)){min=Math.min(min,x);max=Math.max(max,x);}if(max>min)bounds((min+max)/2*hotelWidthScale,10,z,(max-min)*hotelWidthScale,34,6);}bounds(0,67,104,122*hotelArchitectureWidth,80,92);bounds(12*hotelArchitectureWidth,59,42,98*hotelArchitectureWidth,64,56);bounds(0,85,119,15*hotelArchitectureWidth,118,15);bounds(129*hotelWidthScale,16,156,6*hotelWidthScale,23,78);bounds(46*hotelWidthScale,31,-49,22*hotelWidthScale,8,30);bounds(-128*hotelWidthScale,14.95,198,.6*hotelWidthScale,18,.6);
  }
  setNightness(n:number,dt=0){this.nightBoats.visible=n>.15;this.beacon.update(dt,n);const dusk=T.MathUtils.smoothstep(n,.15,.8);this.windows.emissiveIntensity=dusk*1.25;this.lanterns.emissiveIntensity=dusk*3;this.lightPools.opacity=dusk*.64;}
 }
 /** Warm uneven limestone blocks, filtered with mipmaps to avoid subpixel masonry shimmer. */
-function stoneTexture(){const size=512,pixels=new Uint8Array(size*size*4),rng=random(1903),blocks=Array.from({length:128},()=>rng());for(let y=0;y<size;y++)for(let x=0;x<size;x++){const row=Math.floor(y/32),xx=(x+(row%2)*32)%size,col=Math.floor(xx/64),mortar=xx%64<2||y%32<2;const grain=(rng()-.5)*.045,shade=(blocks[(row*8+col)%128]-.5)*.16+grain+.035*Math.sin(x*.025+y*.014),i=(y*size+x)*4;const base=mortar?[.58,.55,.47]:[.83+shade,.78+shade,.66+shade];for(let k=0;k<3;k++)pixels[i+k]=Math.round(T.MathUtils.clamp(base[k],0,1)*255);pixels[i+3]=255;}const t=new T.DataTexture(pixels,size,size,T.RGBAFormat);t.wrapS=t.wrapT=T.RepeatWrapping;t.magFilter=T.LinearFilter;t.minFilter=T.LinearMipmapLinearFilter;t.generateMipmaps=true;t.colorSpace=T.SRGBColorSpace;t.needsUpdate=true;return t;}
+function stoneTexture(){const size=512,pixels=new Uint8Array(size*size*4),rng=random(1903),blocks=Array.from({length:128},()=>rng());for(let y=0;y<size;y++)for(let x=0;x<size;x++){const wy=y+1.1*Math.sin(x*Math.PI/64)+.55*Math.cos(x*Math.PI/16),row=Math.floor(wy/32),xx=(x+(row%2)*32+7*Math.sin(row*1.9)+1.3*Math.sin(y*Math.PI/32)+size)%size,col=Math.floor(xx/64),mortar=xx%64<1.8||(wy+size)%32<1.5;const grain=(rng()-.5)*.045,shade=(blocks[(row*8+col+128)%128]-.5)*.16+grain+.035*Math.sin(x*.025+y*.014),i=(y*size+x)*4;const base=mortar?[.58,.55,.47]:[.83+shade,.78+shade,.66+shade];for(let k=0;k<3;k++)pixels[i+k]=Math.round(T.MathUtils.clamp(base[k],0,1)*255);pixels[i+3]=255;}const t=new T.DataTexture(pixels,size,size,T.RGBAFormat);t.wrapS=t.wrapT=T.RepeatWrapping;t.magFilter=T.LinearFilter;t.minFilter=T.LinearMipmapLinearFilter;t.generateMipmaps=true;t.colorSpace=T.SRGBColorSpace;t.needsUpdate=true;return t;}
 
 function roofTexture(){
  const size=512,pixels=new Uint8Array(size*size*4),rng=random(81);

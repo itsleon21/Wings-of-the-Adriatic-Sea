@@ -1,5 +1,5 @@
 import * as T from 'three';import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {islands} from './WorldConfig.ts';import {breakwaterLayout} from './IslandDetails.ts';
+import {islands,townYaw} from './WorldConfig.ts';import {breakwaterLayout} from './IslandDetails.ts';
 /** Two small lighthouses per bay, with selective real illumination and soft lens halos. */
 export class TownHarborLights{
  readonly root=new T.Group();readonly bounds:T.Box3[]=[];readonly waterLights:T.Vector4[]=[];
@@ -11,11 +11,11 @@ export class TownHarborLights{
   const glow=new T.DataTexture(pixels,size,size);glow.needsUpdate=true;glow.magFilter=glow.minFilter=T.LinearFilter;
   const add=(g:T.BufferGeometry,m:T.Material,x:number,y:number,z:number)=>{g.translate(x,y,z);const a=parts.get(m)??[];a.push(g);parts.set(m,a);};
   for(const d of islands.filter(d=>d.id==='harbor'||d.id==='town')){
-   const facing=d.id==='town'?-1:1;
+   const yaw=d.id==='town'?townYaw:-Math.PI/2;
    for(const [i,arm] of breakwaterLayout(d).entries()){
     const {x,z}=arm.tip,h=arm.deckY,accent=new T.MeshStandardMaterial({color:i===0?0x9f4f38:0x3d6a5c,roughness:.65});
     add(new T.CylinderGeometry(2.5,2.7,.6,16),plaster,x,h+.3,z);add(new T.CylinderGeometry(1.65,2.1,7.3,16),plaster,x,h+4.1,z);add(new T.CylinderGeometry(1.84,1.91,1,16),accent,x,h+3.5,z);
-    add(new T.BoxGeometry(.95,2.5,.18),wood,x,h+1.85,z+facing*1.95);add(new T.CylinderGeometry(2.1,2.1,.35,16),iron,x,h+7.9,z);
+    add(new T.BoxGeometry(.95,2.5,.18).rotateY(yaw),wood,x+Math.sin(yaw)*1.95,h+1.85,z+Math.cos(yaw)*1.95);add(new T.CylinderGeometry(2.1,2.1,.35,16),iron,x,h+7.9,z);
     const lens=new T.MeshBasicMaterial({color:i===0?0xffb09a:0xa1ead5,toneMapped:false});this.lenses.push(lens);add(new T.CylinderGeometry(1.55,1.55,1.45,12),lens,x,h+8.8,z);
     for(let j=0;j<6;j++){const a=j*Math.PI/3;add(new T.CylinderGeometry(.09,.09,1.7,5),iron,x+Math.cos(a)*1.65,h+8.8,z+Math.sin(a)*1.65);}
     add(new T.ConeGeometry(2.3,1.5,12),accent,x,h+10.15,z);add(new T.SphereGeometry(.18,6,4),iron,x,h+11,z);

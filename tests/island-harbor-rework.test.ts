@@ -1,3 +1,4 @@
+import {townPoint} from '../src/world/WorldConfig.ts';
 import {test} from 'node:test';import assert from 'node:assert/strict';import * as T from 'three';
 import {islands,terrainHeight,coralIslets,coralReefLinks,allLandforms} from '../src/world/WorldConfig.ts';
 import {bayShuttleCurve} from '../src/world/SeaTraffic.ts';import {breakwaterLayout} from '../src/world/IslandDetails.ts';
@@ -10,7 +11,7 @@ test('bay shuttles use distinct reproducible curved tracks in the water between 
  const midpoints:T.Vector3[]=[];
  for(let n=0;n<7;n++){
   const curve=bayShuttleCurve(417+n*113),again=bayShuttleCurve(417+n*113);assert.deepEqual(curve.getPoint(.4),again.getPoint(.4));midpoints.push(curve.getPoint(.5));
-  for(let i=0;i<=240;i++){const p=curve.getPoint(i/240);assert.ok(p.x>-2520&&p.x<-1950,'service stays between bays, not west of town');for(const d of allLandforms)for(const dx of[-24,24])for(const dz of[-24,24])assert.ok(terrainHeight(d,p.x+dx,p.z+dz)<-3);}
+  for(let i=0;i<=240;i++){const p=curve.getPoint(i/240);assert.ok(p.x>islands[1].x&&p.x<islands[0].x,'service stays between the relocated bays');for(const d of allLandforms)for(const dx of[-24,24])for(const dz of[-24,24])assert.ok(terrainHeight(d,p.x+dx,p.z+dz)<-3);}
  }
  assert.ok(Math.max(...midpoints.map(p=>p.x))-Math.min(...midpoints.map(p=>p.x))>60);
 });
@@ -29,11 +30,12 @@ test('windmill night panes lie on the new glass surfaces rather than floating at
   for(const p of windmillWindowPanes(f,seed)){const ray=new T.Raycaster(new T.Vector3(p.x,p.y,p.z+.03),new T.Vector3(0,0,-1),0,.05),hit=ray.intersectObject(mesh)[0];assert.ok(hit,model.family);assert.ok(Math.abs(hit.point.z-p.z)<.003,model.family+' window remains attached to glass');}
  }
 });
-test('mill-house sails rotate about NE shafts and taller mills coexist with compact nonintersecting hamlets',()=>{
- const d=islands[1],layout=buildSettlementLayout(d),mills=layout.houses.filter(p=>p.kind.startsWith('HouseMill'));assert.ok(mills.every(p=>p.height>=23));
+test('mill-house sails face across the bay and compact mill profiles fit their reserved plots',()=>{
+ const d=islands[1],layout=buildSettlementLayout(d),mills=layout.houses.filter(p=>p.kind.startsWith('HouseMill'));assert.ok(mills.some(p=>p.height<12)&&mills.some(p=>p.height>18));
  const settlement=new SettlementRenderer(d,layout,[]),sails=settlement.root.children.filter(o=>o.name.includes('/ working mill-house sails /')) as T.InstancedMesh[];
  assert.equal(sails.reduce((n,m)=>n+m.count,0),mills.length);const first=new T.Matrix4();sails[0].getMatrixAt(0,first);settlement.updateTime(3);const changed=new T.Matrix4();sails[0].getMatrixAt(0,changed);assert.notDeepEqual(changed.elements,first.elements);
- for(const s of sails)for(let i=0;i<s.count;i++){s.getMatrixAt(i,changed);assert.ok(new T.Vector3(0,0,1).transformDirection(changed).distanceTo(new T.Vector3(Math.SQRT1_2,0,-Math.SQRT1_2))<1e-6);}
+ for(const s of sails)for(let i=0;i<s.count;i++){s.getMatrixAt(i,changed);const axis=new T.Vector3(0,0,1).transformDirection(changed);
+  assert.ok(mills.some(p=>{const bay=townPoint(d,d.x,d.z+.79*d.rz),yaw=Math.atan2(bay.x-p.x,bay.z-p.z)+Math.PI/9;return Math.hypot(p.x-changed.elements[12],p.z-changed.elements[14])<Math.max(p.width,p.depth)*.46&&axis.distanceTo(new T.Vector3(Math.sin(yaw),0,Math.cos(yaw)))<1e-6;}));}
  for(const island of islands.slice(0,2)){const l=buildSettlementLayout(island),nearest=l.houses.map(p=>Math.min(...l.houses.filter(q=>q!==p).map(q=>Math.hypot(p.x-q.x,p.z-q.z))));assert.ok(nearest.filter(n=>n<42).length/l.houses.length>.75);for(const p of l.houses){for(const q of l.houses)if(q!==p)assert.equal(plotsOverlap(p,q),false);for(const r of l.roads)assert.equal(roadIntersectsPlot(r,p),false);}}
 });
 test('bay beacon foundations coincide with shared, capped breakwater ends',()=>{
@@ -43,8 +45,8 @@ test('bay beacon foundations coincide with shared, capped breakwater ends',()=>{
 test('both churches sit on supported mid-slope foundations outside house plots',()=>{
  for(const d of islands.slice(0,2)){const site=churchSite(d);assert.ok(site.low>d.height*.23&&site.y<d.height*.67);assert.ok(site.y-site.low<8.5);for(const p of buildSettlementLayout(d).houses)assert.ok(Math.hypot(p.x-site.x,p.z-site.z)>43);}
 });
-test('pine footprint is halved by area and the lighthouse has a single shared mooring jetty',()=>{
- const pine=islands.find(d=>d.id==='pine')!;assert.ok(Math.abs(pine.rx*pine.rz/(410*380)-.5)<1e-10);assert.equal(mooringSites.filter(s=>s.id==='lighthouse').length,1);
+test('pine footprint expands over the previous smaller island and the lighthouse has one mooring jetty',()=>{
+ const pine=islands.find(d=>d.id==='pine')!;assert.ok(pine.rx*pine.rz/(410*380*.5)>1.45);assert.equal(mooringSites.filter(s=>s.id==='lighthouse').length,1);
  const root=new T.Group();addOutpostIslands(root,[]);root.traverse(o=>{if(o instanceof T.Mesh&&o.geometry instanceof T.BoxGeometry)assert.notDeepEqual([o.geometry.parameters.width,o.geometry.parameters.height,o.geometry.parameters.depth],[6,1.2,45]);});
 });
 test('coral has exactly three dry islets, separated by submerged reef links with a larger total land area',()=>{
@@ -54,8 +56,17 @@ test('coral has exactly three dry islets, separated by submerged reef links with
  assert.equal(components.length,3);assert.ok(dry/n/n*(d.rx*2)*(d.rz*2)>125000);
  for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b],h=terrainHeight(d,d.x+(p.x+q.x)*.5*d.rx,d.z+(p.z+q.z)*.5*d.rz);assert.ok(h<0&&h>-3);}
 });
-test('large islands mix thirteen regional species in inexpensive shared batches',()=>{
- const root=new T.Group(),counts=addMediterraneanPlants(root,()=>false);assert.equal(plantSpecies.length,13);
- for(const id of['harbor','town'])for(const species of['stone-pine','aleppo-pine','olive','carob','fig','oleander','rosemary'] as const)assert.ok((counts[id][species]??0)>0);
- assert.ok(root.children.length<=14);for(const mesh of root.children as T.InstancedMesh[])assert.ok(mesh.count>0);
+test('large islands support denser stands and seventeen species in shared batches',()=>{
+ const root=new T.Group();let update!:(position:T.Vector3)=>void;
+ const counts=addMediterraneanPlants(root,()=>false,callback=>update=callback);
+ assert.equal(plantSpecies.length,17);
+ for(const id of['harbor','town']){
+  for(const species of plantSpecies)assert.ok((counts[id][species]??0)>0,species);
+  assert.ok(Object.values(counts[id]).reduce((sum,count)=>sum+count,0)>900);
+ }
+ // One batch per species, trunks and the shared near-leaf draw.
+ assert.ok(root.children.length<=plantSpecies.length+2);
+ const leaves=root.getObjectByName('Mediterranean vegetation / nearby leaf cards') as T.InstancedMesh;
+ update(new T.Vector3(islands[0].x,15,islands[0].z-200));assert.ok(leaves.count>0&&leaves.count<leaves.instanceMatrix.count);
+ update(new T.Vector3(islands[0].x,900,islands[0].z-200));assert.equal(leaves.count,0);
 });

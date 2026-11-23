@@ -8,7 +8,7 @@ export const landingProfiles={
 } as const;
 export const landingProfile=(id:AircraftId)=>landingProfiles[id==='s6'||id==='gloster6'||id==='m67'?'mc72':id];
 export interface LandingSnapshot{
- state:FlightState;speed:number;clearance:number;verticalSpeed:number;bank:number;pitch:number;throttle:number;
+ state:FlightState;speed:number;groundSpeed?:number;clearance:number;verticalSpeed:number;bank:number;pitch:number;throttle:number;
  overWater:boolean;clearAhead:boolean;landingCount:number;rolling?:boolean;
 }
 export interface LandingAdvice{
@@ -19,7 +19,8 @@ export interface LandingAdvice{
 /** Conservative game approach bands, deliberately below the physics failure thresholds. */
 export function landingAdvice(tuning:Readonly<FlightTuning>,s:LandingSnapshot):LandingAdvice{
  const p=landingProfile(tuning.id),height=Math.max(0,s.clearance),sink=-s.verticalSpeed,speedKmh=s.speed*3.6,bank=Math.abs(Math.atan2(Math.sin(s.bank),Math.cos(s.bank)))*180/Math.PI;
- const speedGood=speedKmh>=p.minKmh&&speedKmh<=p.maxKmh,sinkGood=sink>=-.35&&sink<=(height<=p.flareHeight?p.maxTouchdownSink:p.maxApproachSink),bankGood=bank<=p.maxBankDegrees,pitchGood=s.pitch>=-.06&&s.pitch<=.12,waterGood=s.overWater&&s.clearAhead;
+ const groundTooFast=(s.groundSpeed??s.speed)>tuning.safeLandingSpeed;
+ const speedGood=speedKmh>=p.minKmh&&speedKmh<=p.maxKmh&&!groundTooFast,sinkGood=sink>=-.35&&sink<=(height<=p.flareHeight?p.maxTouchdownSink:p.maxApproachSink),bankGood=bank<=p.maxBankDegrees,pitchGood=s.pitch>=-.06&&s.pitch<=.12,waterGood=s.overWater&&s.clearAhead;
  const result:LandingAdvice={title:'水面降落参考',instruction:`先在 ${p.setupMin}–${p.setupMax} 米选好开阔海面，逐步减速。`,tone:'neutral',automatic:s.state==='AIRBORNE'&&height<=50&&sink>.3,speedGood,sinkGood,bankGood,pitchGood,waterGood,ready:false,height,sink,speedKmh};
  const say=(title:string,instruction:string,tone:LandingAdvice['tone'])=>Object.assign(result,{title,instruction,tone});
  if(s.state==='CRASHED')return say('飞行已中断','按 R 返回港口，重新练习进近。','danger');
@@ -32,6 +33,7 @@ export function landingAdvice(tuning:Readonly<FlightTuning>,s:LandingSnapshot):L
  if(failures.includes('sink'))return say('下降过快','先松开 S，轻点 W 减缓下降；来不及拉平就加油复飞。','danger');
  if(failures.includes('pitch'))return say('机头过低','松开 S，轻点 W 恢复接近平飞姿态。','danger');
  if(s.verticalSpeed>.7&&s.throttle>.5)return say('正在爬升 · 暂未进近',`先完成起飞并恢复平飞；准备着水时，从 ${p.setupMin}–${p.setupMax} 米逐步收油进近。`,'neutral');
+ if(groundTooFast)return say('接水地速过高','选择迎风进近方向，降低对水速度，再重新对准开放水域。','danger');
  if(!speedGood)return speedKmh>p.maxKmh?say('速度偏高 · 先减速',`按 Ctrl 逐渐收油，接近 ${p.minKmh}–${p.maxKmh} km/h 后再下降。`,failures.includes('speed')?'danger':'caution'):say(s.throttle>.75?'空速偏低 · 调整机头':'空速偏低 · 轻补油门',s.throttle>.75?`油门已较高，减小抬头幅度并恢复平飞，待空速回到 ${p.minKmh}–${p.maxKmh} km/h。`:`轻按 Shift，恢复到 ${p.minKmh}–${p.maxKmh} km/h；不要继续压低机头。`,'caution');
  if(!bankGood)return say('先放平机翼','松开 A / D，减小坡度，避免翼尖先触水。','caution');
  if(!pitchGood)return say('调整机头姿态','轻点 W / S，接近水面时保持机头接近平放或略微抬起。','caution');

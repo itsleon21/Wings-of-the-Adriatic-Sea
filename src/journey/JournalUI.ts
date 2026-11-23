@@ -1,12 +1,12 @@
-import {storyJobs,storyJob} from './StoryMissions';
+import {storyJobs,storyJob,airPirateJobId,airPirateLetter} from './StoryMissions';
 import {mountArchive} from './SaveArchive';
 import {WorkshopPanel} from '../upgrades/WorkshopPanel';
 import {FlightJournal,islandStories} from './FlightJournal';
 import {islands as coreIslands,hotelIsland} from '../world/WorldConfig';
 const islands=[...coreIslands,hotelIsland];
 export class JournalUI{
- readonly dialog:HTMLDialogElement;private hint:HTMLElement;private journal:FlightJournal;private berth:()=>string|undefined;private onLivery:()=>void;private taskSection='';private page='tasks';private viewer?:WorkshopPanel;private eventPanel:HTMLElement;
- constructor(app:HTMLElement,journal:FlightJournal,berth:()=>string|undefined,onLivery:()=>void,photo:()=>void){this.journal=journal;this.berth=berth;this.onLivery=onLivery;
+ readonly dialog:HTMLDialogElement;private hint:HTMLElement;private journal:FlightJournal;private berth:()=>string|undefined;private onLivery:()=>void;private taskSection='';private page='tasks';private viewer?:WorkshopPanel;private eventPanel:HTMLElement;private waitForCoral?:()=>void;
+ constructor(app:HTMLElement,journal:FlightJournal,berth:()=>string|undefined,onLivery:()=>void,photo:()=>void,waitForCoral?:()=>void){this.journal=journal;this.berth=berth;this.onLivery=onLivery;this.waitForCoral=waitForCoral;
  const tools=document.createElement('div');tools.className='journey-tools';tools.innerHTML='<button id="open-journal">航行手册 <kbd>J</kbd></button><button id="open-photo">摄影 <kbd>P</kbd></button>';(app.querySelector('.deck-shortcuts')??app).append(tools);tools.querySelector('#open-journal')!.addEventListener('click',()=>this.toggle());tools.querySelector('#open-photo')!.addEventListener('click',photo);
  this.hint=document.createElement('aside');this.hint.className='commission-hint';this.hint.hidden=true;app.append(this.hint);
  this.eventPanel=document.createElement('aside');this.eventPanel.className='mail-event play-ui';this.eventPanel.hidden=true;this.eventPanel.setAttribute('aria-label','途中电报');this.eventPanel.innerHTML='<small>POSTAL RADIO / 途中电报</small><p>小镇邮务员想要一张海岸明信片。愿意绕行取景吗？可随时放弃，继续送信。</p><button data-mail-choice="yes">绕行取景</button><button data-mail-choice="no">直接送信</button>';
@@ -29,12 +29,16 @@ export class JournalUI{
  updateHint(){const touring=this.journal.active?.id==='hotel-scenic';const event=this.journal.story?this.journal.storyRequest:touring?this.journal.tourRequest:this.journal.mailProgress?.event;
  this.eventPanel.querySelector('p')!.textContent=this.journal.story?(event==='accepted'?this.journal.taskHint:(this.journal.storyRequestTarget?.name??'途中临时委托')+'：愿意绕行完成一次3秒平飞检查吗？本章结算额外40航空币，最多增加2点声望。可以跳过。'):touring?(event==='accepted'?'乘客正在取景。保持80–160米、空速≤145km/h、坡度≤8°，在航标附近平飞3秒。':'乘客：能从海上拍一张酒店吗？愿意的话请绕行取景，也可以按原航线返航。'):'小镇邮务员想要一张海岸明信片。愿意绕行取景吗？可随时放弃，继续送信。';
  this.eventPanel.querySelector('[data-mail-choice=yes]')!.textContent=this.journal.story?'接受临时委托':'绕行取景';this.eventPanel.querySelector('[data-mail-choice=no]')!.textContent=this.journal.story?'继续原航线':touring?'继续原航线':'直接送信';this.eventPanel.hidden=event!=='offered'&&event!=='accepted';(this.eventPanel.querySelector('[data-mail-choice=yes]') as HTMLButtonElement).hidden=event==='accepted';if(this.journal.storyStage){const s=this.journal.storyStage;this.hint.hidden=false;this.hint.textContent=(this.journal.story?.title??'')+' · '+this.journal.taskHint+(s.kind==='rescue'?' · 船旁静止 '+this.journal.rescueRemaining.toFixed(1)+' / 5 秒':'');return;}const c=this.journal.jobs.find(c=>c.id===this.journal.active?.id);this.hint.hidden=!c;if(c){const destination=islands.find(i=>i.id===c.to)!.name,via=c.via?islands.find(i=>i.id===c.via):undefined;if(this.journal.scenicStop){this.hint.textContent=c.title+' · '+this.journal.scenicStop.name+' · '+this.journal.scenicStop.position.y+' m '+this.journal.taskHint;return;}this.hint.textContent=c.title+' · '+(c.id==='rescue'&&!this.journal.active?.observed?'灯塔外海 · 35米内静止 '+this.journal.rescueRemaining.toFixed(1)+' 秒':via&&!this.journal.active?.observed?`观察点 X ${Math.round(via.x+via.rx+350)} / Z ${Math.round(via.z)} · 60–250m`:`前往${destination}靠泊交付${this.journal.taskHint}`);}}
- refresh(){const d=this.journal.data;this.dialog.querySelector('.journal-summary')!.textContent=`发现 ${d.visited.length}/${islands.length} 岛 · 靠泊 ${d.docked.length}/${islands.length} · 委托 ${d.completed.length}/${this.journal.jobs.length} · 航程 ${(d.distance/1000).toFixed(1)} km · 空中 ${Math.floor(d.airSeconds/60)} 分钟 · 照片 ${d.photos} 张`;
+ refresh(){const d=this.journal.data;this.dialog.querySelector('.journal-summary')!.textContent=`发现 ${d.visited.length}/${islands.length} 岛 · 靠泊 ${d.docked.length}/${islands.length} · 委托 ${d.completed.filter(id=>id!=='secret').length}/${this.journal.jobs.length} · 航程 ${(d.distance/1000).toFixed(1)} km · 空中 ${Math.floor(d.airSeconds/60)} 分钟 · 照片 ${d.photos} 张`;
  this.renderTasks();
  const list=this.dialog.querySelector('.island-stories')!;list.replaceChildren();
  for(const island of islands){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=island.name;p.textContent=islandStories[island.id].role+' · '+(d.docked.includes(island.id)?'已获靠泊纪念':d.visited.includes(island.id)?'已发现':'未到访');row.append(h,p);list.append(row);}
  const choices=this.dialog.querySelector('.livery-choices')!;choices.replaceChildren();for(const [id,name,rule] of [['original','原始涂装','默认'],['azure','海蓝纪念','发现三座岛'],['ivory','象牙白纪念','完成两项委托或首次完赛']]){const b=document.createElement('button');b.textContent=name+' · '+(this.journal.unlocked(id)?d.livery===id?'使用中':'已解锁':rule);b.disabled=!this.journal.unlocked(id);b.setAttribute('aria-pressed',String(d.livery===id));b.onclick=()=>{this.journal.selectLivery(id);this.onLivery();this.refresh();};choices.append(b);}
- const entries=this.dialog.querySelector('.journal-entries')!;entries.replaceChildren();for(const text of [...d.entries].reverse()){const li=document.createElement('li');li.textContent=text;entries.append(li);}if(!d.entries.length)entries.textContent='第一段航程，从这里开始。';}
+ const entries=this.dialog.querySelector('.journal-entries')!;entries.replaceChildren();
+ if(d.completed.includes(airPirateJobId)){
+  const letter=document.createElement('li');letter.textContent='《消失的空贼》 · '+airPirateLetter;
+  const route=document.createElement('li');route.textContent='旧航线 · 隐秘海湾营地 → 珊瑚群岛篝火 → 蓝帆船 → 海蚀拱门 → 风车小镇档案馆';entries.append(letter,route);
+ }for(const text of [...d.entries].reverse()){const li=document.createElement('li');li.textContent=text;entries.append(li);}if(!d.entries.length)entries.textContent='第一段航程，从这里开始。';}
  private renderTasks(){
   this.viewer?.dispose();this.viewer=undefined;
   if(!this.taskSection&&!this.journal.data.completed.includes('return-post'))this.taskSection='first';
@@ -50,13 +54,17 @@ export class JournalUI{
   intro.textContent=this.taskSection==='first'?'推荐首次体验。港口→小镇→港口，两段航程可积攒首次改装酬金。途中可选取景；进近失败选择重飞，任务进度会保留。':this.taskSection==='shared'?'三架飞机均可接取航空委托；着水与系泊时自动评价。':this.taskSection===this.journal.aircraft?'先完成连续故事，再自由接取专属委托。每章包含4–5个阶段，章节按顺序解锁。':'可查看任务内容；请在机库换用对应飞机后执行。';panel.append(intro);if(this.taskSection!=='shared'&&this.taskSection!=='first'){const role=this.taskSection==='m5'?'tourism':this.taskSection==='mc72'?'racing':'rescue';const progress=document.createElement('p');progress.className='task-section-note';progress.textContent='声望 '+this.journal.workshop.reputation[role]+' / 30 · 达到30解锁专属进阶委托';panel.append(progress);}
   if(this.taskSection==='mc72'){
    const card=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p'),link=document.createElement('a');
-   h.textContent='施耐德纪念赛';p.textContent='驾驶 MC.72 与两架历史竞速机同时出发，依次通过航门，率先到达灯塔外海终点获胜。完赛后有烟花表演。';
+   h.textContent='施耐德纪念赛';p.textContent='驾驶 MC.72 从港口基地出发，依次飞越风车小镇、珊瑚群岛、花园酒店岛、松林岛与灯塔岛，率先返回基地者获胜。';
    if(this.journal.aircraft==='mc72'&&!this.journal.active){
     link.href='./index.html?race=1&aircraft=mc72&launch=1&returnAircraft=mc72';link.textContent='开始竞速赛 ↗';
    }else if(this.journal.aircraft==='mc72'){
     link.textContent='请先完成或取消当前委托';link.setAttribute('aria-disabled','true');
    }else{link.href='./aircraft.html?aircraft=mc72';link.textContent='进入机库选择 MC.72';}
    card.append(h,p,link);if(this.journal.aircraft==='mc72'&&!this.journal.active){link.textContent='统一配置竞赛 ↗';link.href+='&configuration=stock';const modified=link.cloneNode(true) as HTMLAnchorElement;modified.textContent='改装配置竞赛 ↗';modified.href=link.href.replace('configuration=stock','configuration=modified');card.append(modified);}panel.append(card);
+  }
+  if(this.taskSection==='shared'&&this.journal.storyStage?.requiresBonfire&&this.waitForCoral){
+   const wait=document.createElement('button');wait.textContent='等到傍晚 · 珊瑚篝火';
+   wait.onclick=()=>{this.waitForCoral?.();this.close();};panel.append(wait);
   }
   const jobs=this.journal.jobs.filter(c=>this.journal.isRevealed(c.id)).filter(c=>this.taskSection==='first'?['post','return-post'].includes(c.id):this.taskSection==='shared'?!c.aircraft&&!['rescue','passengers'].includes(c.id):c.aircraft===this.taskSection||this.taskSection==='redwing'&&c.id==='rescue'||this.taskSection==='m5'&&c.id==='passengers');
   for(const c of jobs){

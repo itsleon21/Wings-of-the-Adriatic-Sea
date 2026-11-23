@@ -2,18 +2,27 @@ import {coastalSound} from './CoastalSound.ts';
 import {StreamingHotelRadio} from './StreamingHotelRadio.ts';
 import type {Vector3} from 'three';
 import {islands,hotelIsland,hotelScale} from '../world/WorldConfig.ts';
+interface EngineSoundState{rpm:number;cockpit:boolean;groundSpeed:number;planing:number}
+const engineVoices={
+ m5:{pulses:3,harmonics:[1,.40,.22,.08,.04],blades:2},
+ redwing:{pulses:4,harmonics:[1,.27,.33,.10,.09],blades:2},
+ racer:{pulses:6,harmonics:[1,.54,.17,.31,.16],blades:4},
+};
 export class AudioManager {
  private hotelRadio?:StreamingHotelRadio;private hotelArrived=false;
  private taxiGain?:GainNode;private taxiFilter?:BiquadFilterNode;
  private bellClock=0;private engineFilter?:BiquadFilterNode;private splashBuffer?:AudioBuffer;private surfGain?:GainNode;private forestGain?:GainNode;private birdClock=0;private birdDelay=7;private birdIndex=0;
  private context?:AudioContext;private master?:GainNode;private engine?:OscillatorNode;private engineGain?:GainNode;private windGain?:GainNode;private rainGain?:GainNode;
+ private propeller?:OscillatorNode;private propellerGain?:GainNode;private engineVoice='';
  muted=false;available=true;private volume=.42;
  async unlock(){
   try{
    if(!this.context){
     const ctx=this.context=new AudioContext();this.master=ctx.createGain();this.master.connect(ctx.destination);
-    this.engine=ctx.createOscillator();this.engine.type='sawtooth';this.engineGain=ctx.createGain();const filter=this.engineFilter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=310;
+    this.engine=ctx.createOscillator();this.engineGain=ctx.createGain();const filter=this.engineFilter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=310;
     this.engine.connect(filter);filter.connect(this.engineGain);this.engineGain.connect(this.master);this.engine.start();
+    this.propeller=ctx.createOscillator();this.propeller.type='triangle';this.propellerGain=ctx.createGain();
+    this.propellerGain.gain.value=0;this.propeller.connect(this.propellerGain);this.propellerGain.connect(this.master);this.propeller.start();
     const buffer=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),data=buffer.getChannelData(0);let last=0;
     for(let i=0;i<data.length;i++){last=(last+(Math.random()*2-1)*.04)/1.04;data[i]=last*3;}
     const source=ctx.createBufferSource();source.buffer=buffer;source.loop=true;const band=ctx.createBiquadFilter();band.type='lowpass';band.frequency.value=1200;
@@ -44,13 +53,27 @@ export class AudioManager {
  thunder(){if(!this.context||!this.master||!this.splashBuffer||this.muted)return;const ctx=this.context,t=ctx.currentTime+1.2,source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();source.buffer=this.splashBuffer;source.loop=true;filter.type='lowpass';filter.frequency.setValueAtTime(150,t);filter.frequency.exponentialRampToValueAtTime(35,t+3);gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(.55,t+.12);gain.gain.exponentialRampToValueAtTime(.001,t+3.2);source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(t);source.stop(t+3.3);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};}
  setVolume(value:number){this.volume=Math.max(0,Math.min(1,value));}
  toggle(){this.muted=!this.muted;return this.muted;}
- update(throttle:number,speed:number,onWater:boolean,paused:boolean,rain=0,wind=0,aircraft='redwing',enginePitch=1,engineStopped=false){
+ update(throttle:number,speed:number,onWater:boolean,paused:boolean,rain=0,wind=0,aircraft='redwing',enginePitch=1,engineStopped=false,drive?:EngineSoundState){
   if(!this.context||!this.master||!this.engine||!this.engineGain||!this.windGain)return;
   const t=this.context.currentTime;this.master.gain.setTargetAtTime(this.muted||paused?0:this.volume,t,.1);
-  const base=aircraft==='m5'?25:aircraft==='redwing'?34:46,range=aircraft==='m5'?44:aircraft==='redwing'?67:88,response=aircraft==='m5'?.35:.18;this.engine.frequency.setTargetAtTime((base+throttle*range-(onWater?3:0))*enginePitch,t,response);this.engineFilter?.frequency.setTargetAtTime(240+throttle*(aircraft==='m5'?180:420)+speed*1.2,t,.25);this.engineGain.gain.setTargetAtTime(engineStopped?0:onWater&&speed<1&&throttle<.05?0:.024+throttle*.045,t,.1);
-  const waterWash=onWater&&!engineStopped?Math.sqrt(Math.max(0,Math.min(1,speed/40)))*.075:0;
+  const key=aircraft==='m5'||aircraft==='redwing'?aircraft:'racer',voice=engineVoices[key];
+  if(this.engineVoice!==key){
+   this.engineVoice=key;
+   const harmonics=Float32Array.from([0,...voice.harmonics]);
+   this.engine.setPeriodicWave(this.context.createPeriodicWave(new Float32Array(harmonics.length),harmonics));
+  }
+  const shaft=(drive?.rpm??(500+throttle*1200))/60;
+  const power=engineStopped?0:Math.min(1,shaft/10);
+  const cockpit=drive?.cockpit??false;
+  this.engine.frequency.setTargetAtTime(Math.max(12,shaft*voice.pulses*enginePitch),t,.14);
+  this.engineFilter?.frequency.setTargetAtTime((cockpit?195:300)+throttle*(aircraft==='m5'?180:395)+speed*1.2,t,.25);
+  this.engineGain.gain.setTargetAtTime(power*(.026+throttle*.058),t,.13);
+  this.propeller?.frequency.setTargetAtTime(Math.max(9,shaft*voice.blades),t,.12);
+  this.propellerGain?.gain.setTargetAtTime(power*(cockpit?.28:1)*(.009+throttle*.025),t,.13);
+  const surfaceSpeed=drive?.groundSpeed??speed;
+  const waterWash=onWater&&!engineStopped?Math.sqrt(Math.max(0,Math.min(1,surfaceSpeed/40)))*(.085-.03*(drive?.planing??0)):0;
   this.taxiGain?.gain.setTargetAtTime(waterWash,t,.18);
-  this.taxiFilter?.frequency.setTargetAtTime(420+Math.min(1800,speed*32),t,.2);
+  this.taxiFilter?.frequency.setTargetAtTime(420+Math.min(1800,surfaceSpeed*32),t,.2);
   this.rainGain?.gain.setTargetAtTime(rain*.17,t,.4);
   this.windGain.gain.setTargetAtTime(Math.min(.18,speed/400)+wind*.025+(onWater?Math.min(.06,speed/550):0),t,.1);
  }

@@ -1,6 +1,9 @@
+import {inCoralClearing} from './CoralBonfire.ts';
+import {foliateCrown} from './PlantGeometry.ts';
+import {roomLight} from './WindowLight.ts';
 import * as T from 'three';
 import {terrainHeight,random,islands,coralIslets,coralReefLinks} from './WorldConfig.ts';
-import {mooringSites,inCoralJettyClearance} from './Moorings.ts';
+import {mooringSites,inCoralJettyClearance,inCoralReefApproach} from './Moorings.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {appendSurfacePolygon} from './TerrainSurface.ts';
 
@@ -8,7 +11,7 @@ function lodge(root:T.Group,blockers:T.Box3[],d:IslandDefinition,lx:number,lz:nu
  const x=d.x+lx,z=d.z+lz,y=terrainHeight(d,x,z);if(y<5)return;
  const house=new T.Mesh(new T.BoxGeometry(12,9,10),new T.MeshStandardMaterial({color:0xe9d9b7,roughness:.95}));house.position.set(x,y+4.5,z);house.castShadow=house.receiveShadow=true;root.add(house);
  const roof=new T.Mesh(new T.ConeGeometry(10,6,4),new T.MeshStandardMaterial({color:0xb65b39,roughness:.94}));roof.position.set(x,y+11,z);roof.rotation.y=Math.PI/4;roof.castShadow=true;root.add(roof);
- for(const dx of[-3,3]){const window=new T.Mesh(new T.BoxGeometry(2,3,.15),new T.MeshStandardMaterial({color:0x425d59,roughness:.7}));window.userData.nightWindow=true;window.position.set(x+dx,y+5,z+5.1);root.add(window);}
+ for(const dx of[-3,3]){const window=new T.Mesh(new T.BoxGeometry(2,3,.15),new T.MeshStandardMaterial({color:0x425d59,roughness:.7,emissive:roomLight(x*11+z*7+dx),emissiveIntensity:0}));window.userData.nightWindow=true;window.position.set(x+dx,y+5,z+5.1);root.add(window);}
  blockers.push(new T.Box3(new T.Vector3(x-7,y,z-6),new T.Vector3(x+7,y+14,z+6)));
 }
 
@@ -21,17 +24,22 @@ export function addCoralBiome(root:T.Group,d:IslandDefinition){
   const geometry=new T.CylinderGeometry(r*.8,r,delta.length(),6);geometry.applyQuaternion(q);geometry.translate((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);const expanded=geometry.toNonIndexed();trunks.push(...expanded.attributes.position.array);geometry.dispose();expanded.dispose();
  };
  let placed=0;
- for(let attempt=0;placed<120&&attempt<5000;attempt++){
+ for(let attempt=0;placed<163&&attempt<5000;attempt++){
   const x=d.x+(rng()-.5)*d.rx*1.65,z=d.z+(rng()-.5)*d.rz*1.65,h=terrainHeight(d,x,z);
-  if(h<3||h>22)continue;placed++;
-  const height=16+rng()*12,lean=rng()*6.28,bend=2+rng()*3,points:T.Vector3[]=[];
+  if(h<3||h>22||inCoralClearing(x,z,6)||inCoralJettyClearance(x,z))continue;placed++;
+  const height=10+rng()*17,lean=rng()*6.28,bend=2+rng()*3,points:T.Vector3[]=[];
   for(let j=0;j<=5;j++){const t=j/5;points.push(new T.Vector3(x+Math.cos(lean)*bend*t*t,h+height*t,z+Math.sin(lean)*bend*t*t));if(j)addTrunk(points[j-1],points[j],.36*(1-t*.35));}
   const crown=points[5];
   for(let leaf=0;leaf<9;leaf++){
    const a=leaf/9*Math.PI*2+rng()*.2,length=7+rng()*4,normal=new T.Vector3(-Math.sin(a),0,Math.cos(a));
    for(let j=0;j<7;j++){
     const vertex=(t:number,side:number)=>crown.clone().add(new T.Vector3(Math.cos(a)*length*t,Math.sin(t*Math.PI)*1.5-t*t*2.4,Math.sin(a)*length*t)).addScaledVector(normal,side*Math.sin(t*Math.PI)*.78);
-    const t=j/7,u=(j+1)/7;tri(vertex(t,-1),vertex(u,-1),vertex(t,1),leaf%2?0x537d36:0x6e8f3f);tri(vertex(u,-1),vertex(u,1),vertex(t,1),leaf%2?0x537d36:0x6e8f3f);
+    const t=j/7,u=(j+1)/7,tip=Math.min(1,u+.12),color=leaf%2?0x537d36:0x6e8f3f;
+    tri(vertex(t,-.17),vertex(t,.17),vertex(u,0),color);
+    for(const side of[-1,1]){
+     tri(vertex(t,0),vertex(Math.min(.99,u+.07),side*1.4),vertex(u,side*.21),color);
+     tri(vertex(u,0),vertex(tip,side*.94),vertex(tip,0),side<0?0x60893e:color);
+    }
    }
   }
  }
@@ -39,8 +47,8 @@ export function addCoralBiome(root:T.Group,d:IslandDefinition){
  const trunkMesh=new T.Mesh(trunkGeo,new T.MeshStandardMaterial({color:0x897252,roughness:1,flatShading:true}));trunkMesh.name='珊瑚小岛 / curved palm trunks';trunkMesh.castShadow=trunkMesh.receiveShadow=true;root.add(trunkMesh);
  const leafGeo=new T.BufferGeometry();leafGeo.setAttribute('position',new T.Float32BufferAttribute(leaves,3));leafGeo.setAttribute('color',new T.Float32BufferAttribute(colors,3));leafGeo.computeVertexNormals();
  const leafMesh=new T.Mesh(leafGeo,new T.MeshStandardMaterial({vertexColors:true,side:T.DoubleSide,roughness:.95}));leafMesh.name='珊瑚小岛 / drooping palm fronds';leafMesh.castShadow=leafMesh.receiveShadow=true;root.add(leafMesh);
- const scrub=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),new T.MeshStandardMaterial({color:0x79994c,roughness:1,flatShading:true}),120),dummy=new T.Object3D();let n=0;
- for(let i=0;i<1000&&n<120;i++){const x=d.x+(rng()-.5)*d.rx*1.8,z=d.z+(rng()-.5)*d.rz*1.8,h=terrainHeight(d,x,z);if(h<2)continue;dummy.position.set(x,h+1,z);dummy.scale.set(1.8+rng()*2,1+rng(),1.5+rng()*2);dummy.updateMatrix();scrub.setMatrixAt(n++,dummy.matrix);}scrub.count=n;scrub.name='珊瑚小岛 / low coastal scrub';scrub.receiveShadow=true;root.add(scrub);
+ const scrub=new T.InstancedMesh(foliateCrown(1,7),new T.MeshStandardMaterial({color:0x79994c,roughness:1,flatShading:true}),235),dummy=new T.Object3D();let n=0;
+ for(let i=0;i<4000&&n<scrub.instanceMatrix.count;i++){const x=d.x+(rng()-.5)*d.rx*1.8,z=d.z+(rng()-.5)*d.rz*1.8,h=terrainHeight(d,x,z);if(h<2||inCoralClearing(x,z,3)||inCoralJettyClearance(x,z))continue;dummy.rotation.y=rng()*Math.PI*2;dummy.position.set(x,h+1,z);dummy.scale.set(1.8+rng()*2,1+rng(),1.5+rng()*2);dummy.updateMatrix();scrub.setMatrixAt(n++,dummy.matrix);}scrub.count=n;scrub.name='珊瑚小岛 / low coastal scrub';scrub.receiveShadow=true;root.add(scrub);
 }
 
 export function addOutpostIslands(root:T.Group,blockers:T.Box3[]){
@@ -61,7 +69,7 @@ export function addCoralReefLinks(root:T.Group,d:IslandDefinition,blockers:T.Box
  mesh.name='Coral archipelago / reef stepping stones';mesh.receiveShadow=mesh.castShadow=true;
  for(const [a,b] of coralReefLinks){const p=coralIslets[a],q=coralIslets[b];for(let j=0;j<36&&count<54;j++){
   const t=.30+rng()*.40,x=d.x+(p.x+(q.x-p.x)*t)*d.rx+(rng()-.5)*21,z=d.z+(p.z+(q.z-p.z)*t)*d.rz+(rng()-.5)*21,h=terrainHeight(d,x,z);
-  if(h>-.2||h<-6||inCoralJettyClearance(x,z))continue;const sx=1.5+rng()*2.6,sy=1.8+rng()*2.7,sz=1.4+rng()*2.4,y=Math.max(-1.7,h+.6);
+  if(h>-.2||h<-6||inCoralReefApproach(x,z))continue;const sx=1.5+rng()*2.6,sy=1.8+rng()*2.7,sz=1.4+rng()*2.4,y=Math.max(-1.7,h+.6);
   if(mooringSites.some(m=>Math.hypot(x-m.berth.x,z-m.berth.z)<115))continue;
   dummy.position.set(x,y,z);dummy.scale.set(sx,sy,sz);dummy.rotation.set((rng()-.5)*.3,rng()*6.28,0);dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix);blockers.push(new T.Box3(new T.Vector3(x-sx,y-sy,z-sz),new T.Vector3(x+sx,y+sy,z+sz)));
  }}mesh.count=count;mesh.computeBoundingSphere();root.add(mesh);

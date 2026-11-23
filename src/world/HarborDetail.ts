@@ -2,7 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import type {IslandDefinition} from './WorldConfig.ts';
 import {random} from './WorldConfig.ts';
-import {waterfrontPoint} from './IslandDetails.ts';
+import {quayFingers} from './IslandDetails.ts';
 import type {SettlementLayout} from './SettlementLayout.ts';
 
 /** Permanent facade furniture remains inside the plot's collision footprint. One merged batch per island. */
@@ -14,6 +14,7 @@ export function buildHarborDetail(d:IslandDefinition,layout:SettlementLayout){
  };
  let decorated=0;
  for(const p of layout.houses){
+  if(p.kind.startsWith('HouseMill'))continue;
   if(p.district!=='waterfront'&&rng()>.23)continue;decorated++;
   const c=Math.cos(p.angle),s=Math.sin(p.angle),local=(x:number,y:number,z:number)=>[p.x+x*c+z*s,p.ground+y,p.z-x*s+z*c] as const;
   const box=(x:number,y:number,z:number,w:number,h:number,depth:number,color:number)=>add(new T.BoxGeometry(w,h,depth),color,...local(x,y,z),p.angle);
@@ -48,8 +49,8 @@ export function buildHarborDetail(d:IslandDefinition,layout:SettlementLayout){
   }
  }
  // Coiled mooring lines and slatted fish crates belong to the existing timber jetties.
- for(const angle of[-2.73,-2.18,-1.62,-1.04,-.49]){
-  const p=waterfrontPoint(d,angle,-20);if(p.y>25)continue;const yaw=Math.atan2(-p.nx,-p.nz),x=p.x+p.nz*2,z=p.z-p.nx*2;
+ for(const p of quayFingers(d)){
+  if(p.y>28)continue;const yaw=Math.atan2(-p.nx,-p.nz),x=p.x-p.nx*17+p.nz*2,z=p.z-p.nz*17-p.nx*2;
   for(let turn=0;turn<3;turn++)add(new T.TorusGeometry(.34+turn*.12,.045,4,12).rotateX(Math.PI/2),0xb69d70,x,3.22,z,yaw);
   for(let level=0;level<3;level++)add(new T.BoxGeometry(1.35,.18,.12),0x95784d,x-p.nx*3,3.36+level*.22,z-p.nz*3,yaw);
   add(new T.BoxGeometry(1.35,.12,.9),0x786447,x-p.nx*3,3.21,z-p.nz*3,yaw);

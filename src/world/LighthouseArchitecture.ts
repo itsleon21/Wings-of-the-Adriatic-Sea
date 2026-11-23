@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {lighthouseCottageOffset,lighthouseTrailEnd} from './LighthouseTrail.ts';
 import {terrainHeight} from './WorldConfig.ts';
 import type {IslandDefinition} from './WorldConfig.ts';
 
@@ -22,7 +23,12 @@ export function lighthouseArchitecture(island:IslandDefinition){
  const cylinder=(material:T.Material,bottom:number,top:number,height:number,y:number)=>add(new T.CylinderGeometry(top,bottom,height,40),material,0,y);
  const base=terrainHeight(island,island.x,island.z);
  root.position.set(island.x,base,island.z);
- cylinder(stone,25,21,24,-8);
+ cylinder(stone,25,21,26,-8);
+ const stairBase=terrainHeight(island,island.x,island.z+lighthouseTrailEnd)-base;
+ for(let i=0;i<7;i++){
+  const top=T.MathUtils.lerp(stairBase+.28,5,(i+1)/7),bottom=stairBase-.8;
+  box(stone,0,(top+bottom)/2,lighthouseTrailEnd-.5-i*.85,5.3,top-bottom,1);
+ }
  // Adjacent tapered bands share their boundaries without overlapping faces.
  for(let i=0;i<5;i++)cylinder(i%2?red:stone,11-i*.8,11-(i+1)*.8,10,10+i*10);
  cylinder(stone,11,11,2,55);
@@ -48,7 +54,7 @@ export function lighthouseArchitecture(island:IslandDefinition){
   box(stone,0,y-2,11.3-(y-5)*.08,2.8,.35,.8);
  }
  box(iron,0,10,10.7,3.3,6,.4);
- const cx=44,cz=12;
+ const {x:cx,z:cz}=lighthouseCottageOffset;
  const ground=terrainHeight(island,island.x+cx,island.z+cz)-base;
  // A deep plinth grounds the cottage on the sloping island summit.
  box(stone,cx,ground-4,cz,23,10,19);

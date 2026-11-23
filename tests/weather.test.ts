@@ -41,7 +41,7 @@ test('Mediterranean biomes contain thirteen added species and avoid planted tree
 });
 test('all heightfield islands use smooth finite normals and continuous surface materials',()=>{
  const world=new World();let found=0;
- world.root.traverse(o=>{if(!(o instanceof T.Mesh)||!o.name.endsWith('/ continuous limestone terrain'))return;found++;const m=o.material as T.MeshStandardMaterial;assert.equal(m.flatShading,false);assert.equal(m.vertexColors,false);const n=o.geometry.attributes.normal;for(const v of n.array)assert.ok(Number.isFinite(v));});assert.equal(found,9);
+ world.root.traverse(o=>{if(!(o instanceof T.Mesh)||!o.name.endsWith('/ continuous limestone terrain'))return;found++;const m=o.material as T.MeshStandardMaterial;assert.equal(m.flatShading,false);assert.equal(m.vertexColors,false);const n=o.geometry.attributes.normal;for(const v of n.array)assert.ok(Number.isFinite(v));});assert.equal(found,7);
 });
 
 test('rain has wind drift at rest and follows air velocity relative to the moving aircraft',async()=>{
@@ -50,4 +50,24 @@ test('rain has wind drift at rest and follows air velocity relative to the movin
  assert.ok(still.x>0&&still.z>0&&still.y<0);assert.ok(flying.x<0&&flying.z>still.z&&flying.y<still.y);
  assert.ok(flying.clone().add(new T.Vector3(90,4,-35)).distanceTo(still)<1e-8);
  const fast=relativeRainVelocity(1,new T.Vector3(1000,-1000,-1000));assert.ok(fast.toArray().every(Number.isFinite));assert.ok(Math.abs(fast.x)<=155&&Math.abs(fast.z)<=155&&fast.y<0);
+});
+
+test('rain starts usually between midnight and 04:00, with the full fade inside four game hours',()=>{
+ let night=0,other=0;
+ for(let seed=1;seed<=8;seed++){
+  const w=new WeatherController('sunny',seed);
+  let start=-1;
+  for(let tick=0;tick<24*600*2;tick++){
+   const hour=tick/600%24,previous=w.target;
+   w.update(.1,true,hour);
+   if(previous!=='rain'&&w.target==='rain'){
+    if(hour<4)night++;else other++;
+    start=tick;
+   }
+   if(start<0)continue;
+   if(w.target!=='rain'&&w.current.rain===0){assert.ok(tick-start<=2400);start=-1;}
+   else assert.ok(tick-start<2400);
+  }
+ }
+ assert.ok(night>=12&&night>other*4,`midnight starts ${night}, other starts ${other}`);
 });

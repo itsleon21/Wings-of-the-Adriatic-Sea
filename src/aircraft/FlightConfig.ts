@@ -28,4 +28,4 @@ export const M5FlightConfig: Readonly<FlightTuning> = Object.freeze({
   aerobatics:false, rollRate:0, initialSpeed:29, cameraDistance:24, cameraHeight:7.8, floatHalfSpan:3.7,
 });
 export const MC72FlightConfig:Readonly<FlightTuning>=Object.freeze({...FlightConfig,id:'mc72',thrust:15,drag:.00070,linearDrag:.020,maxSpeed:135,cruiseSpeed:105.5,liftSpeed:35,takeoffSpeed:39,throttleRate:.26,maxBank:.65,maxPitch:.24,attitudeResponse:2.8,turnRate:.60,yawRate:.14,waterDrag:.13,hullOffset:1.78,safeLandingSink:4.5,safeLandingSpeed:78,safeLandingBank:.24,aerobatics:true,rollRate:2.05,initialSpeed:65,cameraDistance:21,cameraHeight:6.7,floatHalfSpan:1.18});
-export const Spawn = { x: harborRunway.x, y: FlightConfig.hullOffset, z: harborRunway.z, heading: -Math.PI / 2 };
+export const Spawn = { x: harborRunway.x, y: FlightConfig.hullOffset, z: harborRunway.z, heading: harborRunway.heading };

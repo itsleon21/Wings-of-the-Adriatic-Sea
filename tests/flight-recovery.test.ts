@@ -17,3 +17,15 @@ test('auto landing guide only opens on descending airborne approaches at 50 metr
  const c=getAircraft('redwing').tuning,s={state:'AIRBORNE' as const,speed:35,clearance:50,verticalSpeed:-1,bank:0,pitch:0,throttle:.1,overWater:true,clearAhead:true,landingCount:0};
  assert(landingAdvice(c,s).automatic);for(const change of [{clearance:50.01},{verticalSpeed:0},{verticalSpeed:1},{state:'ON_WATER' as const,landingCount:1},{state:'LANDING' as const}])assert(!landingAdvice(c,{...s,...change}).automatic);
 });
+
+test('hard touchdown is detected and recovery preserves flight time and completed landings',()=>{
+ const f=new FlightController(true);f.simulationTime=40;f.landingCount=2;
+ f.recoverAt(new Vector3(0,f.tuning.hullOffset+.1,0),0);
+ f.velocity.set(0,-12,-f.tuning.initialSpeed);
+ f.update(1/60,neutralInput());
+ assert.equal(f.state,'CRASHED');assert.equal(f.hardLanding,true);
+ const time=f.simulationTime;
+ f.recoverAt(new Vector3(0,80,1500),0);
+ assert.equal(f.state,'AIRBORNE');assert.equal(f.hardLanding,false);
+ assert.equal(f.simulationTime,time);assert.equal(f.landingCount,2);
+});

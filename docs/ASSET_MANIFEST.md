@@ -132,3 +132,11 @@ IslandIdentity.ts生成六岛码头静物，五种材料合批，无外部模型
 ## v0.28
 
 IslandDetails.ts内原创双臂石砌防波堤、条纹白色堤头小塔；TownHarborLights.ts内原创红绿航标灯，无外部模型或纹理。小镇装饰礁石使用同一无礁区规则过滤可视实例和碰撞。CloudLayout/CloudVolumes与TimeOfDay/Daylight继续使用工程内原创程序布局和三维密度材质，没有引入外部天空或云图片。
+## 港口近景样板 / 扫描地表
+
+- 新增 `public/textures/terrain/coast-albedo.jpg` 与 `coast-normal-rh.png`，来自 Poly Haven 的 `rock_2`、`grass_path_2`、`coast_sand_05`、`rocky_terrain`，均为 CC0。资源与许可链接见 [visual-foundation.md](visual-foundation.md)。
+- `art/build_surface_atlas.py` 负责去除低频照明、缩放、打包法线/粗糙度/高度及环绕留边。游戏运行时不请求第三方网站。
+- `LimestoneGeometry.ts` 岩体、`FoliageDetail.ts` 叶簇纹理/几何、`CockpitInstruments.ts` 表盘图及指针均为项目内原创。
+- 红翼浮筒拉索连接点收回蒙皮，Blender 源文件、GLB、侧视图与 AO 同步重建。
+
+港口结构第二阶段：`HarborRelief.ts` 外侧坡地侵蚀为原创高度场；`build_environment.py` 新增真实窗洞、实体窗侧墙、闭合屋顶与檐梁椽头，重新生成 `environment.glb`、`environment.blend` 和腔体遮蔽。无新增第三方建筑资源。

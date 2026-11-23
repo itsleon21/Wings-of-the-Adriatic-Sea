@@ -7,18 +7,25 @@ import {FrameMetrics} from '../src/game/FrameMetrics.ts';
 
 test('town has substantially more land and an elongated asymmetric outline compared with the base',()=>{
  const measure=(d:typeof islands[number])=>{let area=0,west=0,east=0,minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;for(let x=-d.rx*1.12;x<d.rx*1.12;x+=12)for(let z=-d.rz*1.12;z<d.rz*1.12;z+=12)if(terrainHeight(d,d.x+x,d.z+z)>0){area+=144;if(x<0)west++;else east++;minX=Math.min(minX,x);maxX=Math.max(maxX,x);minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);}return{area,aspect:(maxX-minX)/(maxZ-minZ),asymmetry:Math.abs(west-east)/(west+east)};};
- const base=measure(islands[0]),town=measure(islands[1]);assert.ok(town.area>base.area*2.3);assert.ok(town.aspect>base.aspect*1.15);assert.ok(town.asymmetry>.04);
+ const base=measure(islands[0]),town=measure({...islands[1],canonical:true});assert.ok(town.area>base.area*2.3);assert.ok(town.aspect>base.aspect*1.15);assert.ok(town.asymmetry>.04);
 });
 
 test('building LOD transitions use cached union bounds and hysteresis without runtime bound rebuilding',()=>{
  const d=islands[0],settlement=new SettlementRenderer(d,buildSettlementLayout(d),[]),kit=new Map<string,T.BufferGeometry>();
  for(const kind of houseKinds){const g=new T.BoxGeometry(1.2,1.7,1.2);g.translate(0,.35,0);kit.set(kind,g);}
  settlement.loadKit(kit,new T.MeshStandardMaterial());
- const batch=settlement.root.children.find(o=>o.name.endsWith('/ HouseFisher')) as T.InstancedMesh,detail=batch.geometry,bounds=batch.boundingSphere;
+ const batch=settlement.root.children.find(o=>o.name.endsWith('/ HouseFisher')) as T.InstancedMesh;
+ const detail=kit.get('HouseFisher'),coarse=batch.geometry,bounds=batch.boundingSphere!;
  let rebuilds=0;for(const object of settlement.root.children)if(object instanceof T.InstancedMesh)object.computeBoundingSphere=()=>{rebuilds++;};
- const at=(x:number)=>settlement.updateLOD(new T.Vector3(d.x+x,0,d.z));
- at(1900);assert.equal(batch.geometry,detail);at(1960);const coarse=batch.geometry;assert.notEqual(coarse,detail);
- at(1800);at(1660);assert.equal(batch.geometry,coarse);at(1640);assert.equal(batch.geometry,detail);at(1800);assert.equal(batch.geometry,detail);
+ const at=(height:number)=>settlement.updateLOD(bounds.center.clone().add(new T.Vector3(0,height,0)));
+ at(0);assert.equal(batch.geometry,detail);
+ at(600);assert.equal(batch.geometry,coarse,'high altitude must release close geometry even over the same block');
+ at(0);assert.equal(batch.geometry,detail);
+ const elevation=Array.from({length:61},(_,i)=>225+i*2).find(height=>{at(height);return batch.geometry===coarse;})!;
+ assert.ok(Number.isFinite(elevation));
+ at(elevation-15);assert.equal(batch.geometry,coarse);
+ at(0);assert.equal(batch.geometry,detail);
+ at(elevation-15);assert.equal(batch.geometry,detail);
  assert.equal(rebuilds,0);assert.equal(batch.boundingSphere,bounds);
 });
 
@@ -38,7 +45,7 @@ test('frame diagnostics retain individual hitches that a P95 can hide',()=>{
 
 test('bounded cloud shadow rasterization retains the original projected coverage without full-map cloud scans',async()=>{
  const {createCloudLayout}=await import('../src/rendering/CloudLayout.ts'),{rasterCloudShadows}=await import('../src/rendering/CloudShadowMap.ts');
- const cells=createCloudLayout(1234,'cloudy'),sun=new T.Vector3(.4,.35,-.7).normalize(),data=new Uint8Array(64*64*4),acc=new Float32Array(64*64);
+ const cells=createCloudLayout(1234,'cloudy').filter(c=>c.layer!=='cove-mist'),sun=new T.Vector3(.4,.35,-.7).normalize(),data=new Uint8Array(64*64*4),acc=new Float32Array(64*64);
  rasterCloudShadows(cells,sun,data,acc);
  for(let z=0;z<64;z++)for(let x=0;x<64;x++){
   const wx=(x/63-.5)*22000,wz=(z/63-.5)*22000;let sum=0;

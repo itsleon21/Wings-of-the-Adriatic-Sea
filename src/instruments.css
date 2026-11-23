@@ -123,3 +123,38 @@ body.is-playing.hud-hidden .cockpit-commandbar{display:none!important}
 body.is-playing .cockpit-commandbar #deck-tools::after{content:none}
 body:not(.is-playing) .cockpit-commandbar{position:fixed;top:24px;right:24px;z-index:10}
 body:not(.is-playing) .cockpit-commandbar .deck-shortcuts{display:none}
+
+/* The anchor follows the command bar even when its controls wrap to a second row. */
+.flight-notices{display:none}
+body.is-playing .flight-notices{
+ position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+ display:grid;justify-items:center;gap:5px;width:min(430px,calc(100vw - 490px));pointer-events:none;
+ --notice-surface:rgb(12 32 42 / .78);
+}
+body.is-playing .flight-notices .landing-assist,
+body.is-playing .flight-notices .flight-notice{
+ color:#fff1d7;background:var(--notice-surface);border:1px solid #cad6cb59;border-radius:5px;
+ box-shadow:0 3px 12px #06192233;backdrop-filter:blur(5px);text-shadow:0 1px 2px #061922;
+}
+body.is-playing .flight-notices .landing-assist{
+ position:relative;inset:auto;transform:none;width:100%;max-width:none;
+ padding:8px 12px;pointer-events:auto;overflow:auto;max-height:45dvh;
+}
+body.is-playing .flight-notices .landing-heading{margin:0 0 3px}
+body.is-playing .flight-notices .landing-assist h3{margin:0 28px 6px 0;font-size:15px}
+body.is-playing .flight-notices .landing-readings{gap:10px}
+body.is-playing .flight-notices .landing-readings b{font-size:18px;margin:2px 0}
+body.is-playing .flight-notices .landing-checks{margin:6px 0 0}
+body.is-playing .flight-notices .landing-assist p{margin:5px 0 0;padding-top:3px;line-height:1.35}
+body.is-playing .flight-notices #landing-path:empty{display:none}
+body.is-playing .flight-notices .flight-notice{
+ display:none;max-width:100%;padding:5px 12px;font-size:11px;line-height:1.45;text-align:center;
+}
+body.is-playing .flight-notices .flight-notice.visible{display:block}
+@media(max-width:1050px){
+ body.is-playing .flight-notices{width:min(390px,calc(100vw - 370px))}
+}
+@media(max-width:650px){
+ body.is-playing .flight-notices{width:min(340px,calc(100vw - 24px))}
+ body.is-playing #app:has(.landing-assist:not([hidden])) .instrument-pair{bottom:calc(94px + min(175px, 45dvh))}
+}

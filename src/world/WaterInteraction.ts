@@ -1,15 +1,39 @@
 import * as T from 'three';
 import {random} from './WorldConfig.ts';
 import type {Ocean} from './Ocean.ts';
-interface WakeSample{x:number;z:number;sideX:number;sideZ:number;age:number;strength:number;segment:number}
+import type {TouchdownContact} from '../aircraft/WaterContact.ts';
+export interface WaterMotion {
+ readonly planing:number;
+ readonly floatLoadLeft:number;
+ readonly floatLoadRight:number;
+ readonly lastTouchdown?:TouchdownContact;
+}
+function splashMask(){
+ const size=96,pixels=new Uint8Array(size*size*4);
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=(x+.5)*2/size-1,v=(y+.5)*2/size-1,angle=Math.atan2(v,u),radius=Math.hypot(u,v);
+  const edge=.88+.035*Math.sin(angle*9)+.018*Math.cos(angle*17);
+  const band=Math.exp(-Math.pow((radius-edge)/.046,2));
+  const gaps=T.MathUtils.smoothstep(Math.sin(angle*7+.8*Math.cos(angle*13)), -.58,.38);
+  const texture=.62+.38*Math.sin(u*83+Math.cos(v*54))*Math.sin(v*67);
+  const value=Math.round(255*band*gaps*texture);
+  pixels.set([value,value,value,255],(y*size+x)*4);
+ }
+ const map=new T.DataTexture(pixels,size,size);
+ map.magFilter=T.LinearFilter;map.minFilter=T.LinearMipmapLinearFilter;map.generateMipmaps=true;map.needsUpdate=true;
+ return map;
+}
+interface WakeSample{x:number;z:number;sideX:number;sideZ:number;age:number;strength:number;segment:number;planing:number;left:number;right:number}
 /** Wake history stays in world space after takeoff; spray follows gravity instead of the aircraft. */
 export class WaterInteraction{
  readonly root=new T.Group();private brightness={value:1};private samples:WakeSample[]=[];private emission=0;private dropEmission=0;private rng=random(731);private last=new T.Vector3(Infinity,0,0);private wasOnWater=false;
  private positions=new Float32Array(700*3);private velocities=new Float32Array(700*3);private ages=new Float32Array(700).fill(10);private alpha=new Float32Array(700);private cursor=0;
  private drops:T.Points;private wake:T.Mesh;private wakePositions=new Float32Array(80*4*2*3);private wakeOpacity=new Float32Array(80*4*2);private wakeEdge=new Float32Array(80*4*2);
  private segment=0;private dripTime=0;private dripBudget=0;private impactStrength=0;private ocean:Ocean;private impactTime=10;private rings:T.Mesh<T.RingGeometry,T.MeshBasicMaterial>[]=[];private impactCenters:T.Vector2[]=[];
+ private impactHeading=0;private impactSpeed=0;
  constructor(ocean:Ocean){this.ocean=ocean;
-  for(let i=0;i<2;i++){const g=new T.RingGeometry(.75,1,48,1);g.rotateX(-Math.PI/2);const ring=new T.Mesh(g,new T.MeshBasicMaterial({color:0xdcefe4,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));ring.frustumCulled=false;ring.visible=false;ring.name='Touchdown expanding foam';this.rings.push(ring);this.root.add(ring);}
+  const alphaMap=splashMask();
+  for(let i=0;i<2;i++){const g=new T.RingGeometry(.75,1,48,1);g.rotateX(-Math.PI/2);const ring=new T.Mesh(g,new T.MeshBasicMaterial({color:0xdcefe4,alphaMap,transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide}));ring.frustumCulled=false;ring.visible=false;ring.name='Touchdown expanding foam';this.rings.push(ring);this.root.add(ring);}
   this.root.name='Water interaction / persistent Kelvin wake and ballistic spray';
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(this.positions,3).setUsage(T.DynamicDrawUsage));geometry.setAttribute('opacity',new T.BufferAttribute(this.alpha,1).setUsage(T.DynamicDrawUsage));
   this.drops=new T.Points(geometry,new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{foamBrightness:this.brightness},vertexShader:`#include <common>
@@ -39,19 +63,45 @@ gl_FragColor.rgb*=foamBrightness;
  setNightness(nightness:number){this.brightness.value=1-.82*T.MathUtils.clamp(nightness,0,1);for(const ring of this.rings)ring.material.color.setRGB(.80*this.brightness.value,.88*this.brightness.value,.82*this.brightness.value);}
  private emit(x:number,y:number,z:number,vx:number,vy:number,vz:number){const i=this.cursor++%700,k=i*3;this.positions[k]=x;this.positions[k+1]=y;this.positions[k+2]=z;this.velocities[k]=vx;this.velocities[k+1]=vy;this.velocities[k+2]=vz;this.ages[i]=0;}
  reset(){this.samples=[];this.ages.fill(10);this.alpha.fill(0);this.wakeOpacity.fill(0);this.emission=this.dropEmission=0;this.dripTime=this.dripBudget=0;this.segment=0;this.impactStrength=0;this.wasOnWater=false;this.impactTime=10;for(const ring of this.rings)ring.visible=false;}
- update(dt:number,position:T.Vector3,heading:number,speed:number,onWater:boolean,impact:number,aircraft:string){
+ update(dt:number,position:T.Vector3,heading:number,speed:number,onWater:boolean,impact:number,aircraft:string,motion?:WaterMotion){
   if(!Number.isFinite(dt)||dt<=0)return;
   if(position.distanceToSquared(this.last)>300**2)this.reset();this.last.copy(position);dt=Math.min(dt,.05);
   const localWater=this.ocean.surfaceAt(position.x,position.z);
   const twinFloat=['mc72','s6','gloster6','m67'].includes(aircraft),floatSpan=({mc72:1.18,s6:1.32,gloster6:1.16,m67:1.4} as Record<string,number>)[aircraft]??3.65;
   const profile=aircraft==='m5'?{spray:.70,spread:.75}:twinFloat?{spray:1.10,spread:.9}:{spray:1,spread:1};
   const sx=Math.cos(heading),sz=-Math.sin(heading),fx=-Math.sin(heading),fz=-Math.cos(heading);
+  const planing=motion?.planing??0,left=motion?.floatLoadLeft??1,right=motion?.floatLoadRight??1;
+  const contact=motion?.lastTouchdown;
   if(onWater&&!this.wasOnWater)this.segment++;
-  if(onWater&&!this.wasOnWater&&impact>.08){this.impactTime=0;this.impactStrength=impact;this.impactCenters=(twinFloat?[-1,1]:[0]).map(side=>new T.Vector2(position.x+sx*side*floatSpan,position.z+sz*side*floatSpan));}
+  const touchdown=onWater&&!this.wasOnWater&&impact>.08;
+  if(touchdown){
+   this.impactTime=0;this.impactStrength=contact?.impact??impact;
+   this.impactHeading=heading;this.impactSpeed=speed;
+   this.impactCenters=contact?[new T.Vector2(contact.x,contact.z)]:(twinFloat?[-1,1]:[0]).map(side=>new T.Vector2(position.x+sx*side*floatSpan,position.z+sz*side*floatSpan));
+  }
+  if(onWater&&twinFloat&&contact&&this.impactTime<1&&this.impactCenters.length===1&&
+    (contact.side===-1?right:left)>.48){
+   const opposite=-contact.side;
+   this.impactCenters.push(new T.Vector2(position.x+sx*opposite*floatSpan,position.z+sz*opposite*floatSpan));
+  }
   this.impactTime+=dt;
-  this.rings.forEach((ring,index)=>{const center=this.impactCenters[index];ring.visible=!!center&&this.impactTime<2.2;if(!ring.visible||!center)return;const radius=1+this.impactTime*5;const attr=ring.geometry.attributes.position;for(let i=0;i<attr.count;i++){const angle=i%49/48*Math.PI*2,r=(i<49?radius*.78:radius)*(1.+.055*Math.sin(angle*3.+index*2.)+.025*Math.cos(angle*7.)),x=center.x+Math.cos(angle)*r,z=center.y-Math.sin(angle)*r;attr.setXYZ(i,x,this.ocean.heightAt(x,z)+.16,z);}attr.needsUpdate=true;ring.material.opacity=(.12+.16*this.impactStrength)*Math.pow(1-this.impactTime/2.2,2);});
+  this.rings.forEach((ring,index)=>{
+   const center=this.impactCenters[index];
+   ring.visible=!!center&&this.impactTime<2.2;
+   if(!ring.visible||!center)return;
+   const radius=1+this.impactTime*3.25,elongation=1+Math.min(1.2,this.impactSpeed/28);
+   const acrossX=Math.cos(this.impactHeading),acrossZ=-Math.sin(this.impactHeading);
+   const water=this.ocean.surfaceAt(center.x,center.y),attr=ring.geometry.attributes.position;
+   for(let i=0;i<attr.count;i++){
+    const angle=i%49/48*Math.PI*2,r=(i<49?radius*.75:radius)*(1.+.11*Math.sin(angle*3.+index*2.));
+    const lateral=Math.cos(angle)*r,along=Math.sin(angle)*r*elongation;
+    const dx=acrossX*lateral+acrossZ*along,dz=acrossZ*lateral-acrossX*along;
+    attr.setXYZ(i,center.x+dx,water.height+water.dx*dx+water.dz*dz+.10,center.y+dz);
+   }
+   attr.needsUpdate=true;ring.material.opacity=(.14+.27*this.impactStrength)*Math.pow(1-this.impactTime/2.2,2);
+  });
   for(const s of this.samples)s.age+=dt;this.samples=this.samples.filter(s=>s.age<11);
-  if(onWater&&speed>2){this.emission+=dt;while(this.emission>=.14){this.emission-=.14;this.samples.unshift({x:position.x-fx*2,z:position.z-fz*2,sideX:sx,sideZ:sz,age:0,strength:Math.min(.7,speed/48),segment:this.segment});if(this.samples.length>80)this.samples.pop();}}
+  if(onWater&&speed>2){this.emission+=dt;while(this.emission>=.14){this.emission-=.14;this.samples.unshift({x:position.x-fx*2,z:position.z-fz*2,sideX:sx,sideZ:sz,age:0,strength:Math.min(.7,speed/48),segment:this.segment,planing,left,right});if(this.samples.length>80)this.samples.pop();}}
   else this.emission=0;
   this.wakeOpacity.fill(0);const lastSample=this.samples[this.samples.length-1],tailHeight=lastSample?this.ocean.heightAt(lastSample.x,lastSample.z)+.075:position.y;
   // Every strip starts at the most recent valid sample; unused vertices cannot bridge to origin.
@@ -61,14 +111,27 @@ gl_FragColor.rgb*=foamBrightness;
   for(let i=0;i<this.samples.length;i++){
    const s=this.samples[i],surface=this.ocean.surfaceAt(s.x,s.z),joined=(i===0||this.samples[i-1].segment===s.segment)&&(i===this.samples.length-1||this.samples[i+1].segment===s.segment),fade=joined?(1-s.age/11)*Math.min(1,s.age*5)*s.strength:0;
    for(let strip=0;strip<4;strip++)for(let edge=0;edge<2;edge++){
-    const side=strip%2===0?-1:1,outer=strip>=2,offset=side*((outer||twinFloat?floatSpan+(outer?.20:0):1)+s.age*(outer?.5:.95)*profile.spread),width=.30+s.age*.16;
+    const side=strip%2===0?-1:1,outer=strip>=2;
+    const spread=(outer?.54:.91)*(1-.47*s.planing)*profile.spread;
+    const base=twinFloat?floatSpan+(outer?.42:0):outer?floatSpan:.82-.32*s.planing;
+    const offset=side*(base+s.age*spread),width=.24+s.age*.11;
+    const load=side===-1?s.left:s.right;
+    const strength=twinFloat?(.28+.72*load)*(outer?.58:1):outer?.36*load:1;
     const delta=offset+(edge?width:-width),x=s.x+s.sideX*delta,z=s.z+s.sideZ*delta,k=strip*160+i*2+edge;
-    this.wakePositions[k*3]=x;this.wakePositions[k*3+1]=surface.height+surface.dx*(x-s.x)+surface.dz*(z-s.z)+.075;this.wakePositions[k*3+2]=z;this.wakeOpacity[k]=fade*(outer&&aircraft==='m5'?.3:1);
+    this.wakePositions[k*3]=x;this.wakePositions[k*3+1]=surface.height+surface.dx*(x-s.x)+surface.dz*(z-s.z)+.075;this.wakePositions[k*3+2]=z;this.wakeOpacity[k]=fade*strength;
    }
   }
   (this.wake.geometry.attributes.position as T.BufferAttribute).needsUpdate=true;(this.wake.geometry.attributes.opacity as T.BufferAttribute).needsUpdate=true;
-  if(onWater){const rate=speed>4?Math.min(250,(speed*4+impact*100)*profile.spray):0;this.dropEmission+=dt*rate;let count=Math.floor(this.dropEmission);this.dropEmission-=count;if(!this.wasOnWater)count+=Math.round(impact*100);
-   for(let j=0;j<count;j++){const side=this.rng()<.5?-1:1,float=this.rng()<.28,offset=side*(float||twinFloat?floatSpan:.9),x=position.x+sx*offset+fx*(1+this.rng()),z=position.z+sz*offset+fz*(1+this.rng()),y=this.ocean.heightAt(x,z)+.13;const outward=(.5+this.rng()*1.7)*(1+speed*.04);
+  if(onWater){const rate=speed>4?Math.min(235,(speed*(3.4-1.3*planing)+impact*85)*profile.spray):0;this.dropEmission+=dt*rate;let count=Math.floor(this.dropEmission);this.dropEmission-=count;
+   const burst=touchdown?Math.round(impact*85):0;count+=burst;
+   for(let j=0;j<count;j++){
+    const entering=contact&&j<burst;
+    const side=entering&&contact.side!==0?contact.side:this.rng()<(twinFloat?(left+.12)/(left+right+.24):.5)?-1:1;
+    const float=twinFloat||this.rng()<.22*(side===-1?left:right);
+    const offset=side*(float?floatSpan:.8-.35*planing),fore=1.65-2.25*planing+this.rng()*.6;
+    const x=entering?contact.x+sx*(this.rng()-.5):position.x+sx*offset+fx*fore;
+    const z=entering?contact.z+sz*(this.rng()-.5):position.z+sz*offset+fz*fore;
+    const y=this.ocean.heightAt(x,z)+.13,outward=(.5+this.rng()*1.7)*(1+speed*.04)*(1-.30*planing);
     this.emit(x,y,z,fx*speed*.45+sx*side*outward,1+this.rng()*(1+speed*.055+impact*3),fz*speed*.45+sz*side*outward);
    }
   }

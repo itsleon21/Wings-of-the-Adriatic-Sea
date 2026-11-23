@@ -74,7 +74,7 @@ if(!WebGL.isWebGL2Available()){
   text('view-hint',orbit?'拖动旋转 · 滚轮缩放':'正交视图 · 切换透视可自由旋转');
  }
  for(const button of document.querySelectorAll<HTMLButtonElement>('[data-view]'))button.addEventListener('click',()=>chooseView(button.dataset.view!));
- const souvenir=new FlightJournal(),livery=new AircraftLivery();const model=new AircraftModel(selected.id);scene.add(model.root);
+ const souvenir=new FlightJournal(),livery=new AircraftLivery();const model=new AircraftModel(selected.id);scene.add(model.root);shadows.setAircraft(model.root);
  async function chooseAircraft(id:AircraftId){
   const current=++request;selected=getAircraft(id);floor.position.y=-selected.tuning.hullOffset-.07;focus.y=selected.id==='mc72'||isRaceAircraft(selected.id)?-.15:.65;saveAircraftSelection(id);const url=new URL(location.href);url.searchParams.set('aircraft',id);if(racing)url.searchParams.set('race','1');history.replaceState(null,'',url);updateSelection();chooseView(view);renderer.domElement.setAttribute('aria-label',`${selected.name}三维模型`);
   const loading=document.querySelector<HTMLElement>('#loading')!;loading.hidden=false;loading.textContent=`正在准备${selected.name}…`;depart.disabled=true;

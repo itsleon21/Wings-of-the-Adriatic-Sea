@@ -15,9 +15,10 @@ test('sun shadows use packed RGBA depth, preserve surface hooks, and shade direc
 
 test('all weather modes use filtered 3D density, retain their layout and reuse GPU resources',()=>{
  const scene=new T.Scene(),clouds=new CloudVolumes(scene,713),material=clouds.mesh.material as T.ShaderMaterial,texture=material.uniforms.densityMap.value as T.Data3DTexture,geometry=clouds.mesh.geometry;
- assert.ok(texture.isData3DTexture);assert.equal(texture.image.depth,480);assert.ok((texture.image.data as Uint8Array).some(v=>v>0&&v<255));
+ assert.ok(texture.isData3DTexture);assert.equal(texture.image.depth,texture.image.width*cloudShapes.length*2);assert.ok((texture.image.data as Uint8Array).some(v=>v>0&&v<255));
  for(const weather of weatherIds){clouds.update(0,weather==='rain'?1:0,.4,weather);assert.equal(clouds.mesh.count,createCloudLayout(713,weather).length);assert.equal(clouds.mesh.geometry,geometry);assert.equal(material.uniforms.densityMap.value,texture);assert.ok(clouds.mesh.count<=80);}
- assert.ok(createCloudLayout(713,'sunny').length<=9);
+ assert.ok(createCloudLayout(713,'sunny').filter(cell=>cell.layer!=='cove-mist').length<=9);
+ for(const weather of weatherIds)assert.equal(createCloudLayout(713,weather).filter(cell=>cell.layer==='cove-mist').length,6);
  const position=clouds.mesh.position.clone();clouds.update(0,0,.9,'fog');assert.deepEqual(clouds.mesh.position,position);
  for(const [scale,steps] of [[.45,40],[.3,32],[.2,24]]){clouds.setDetail(scale);assert.equal(material.uniforms.viewSteps.value,steps);}
  const pass=new CloudPass(scene,new T.PerspectiveCamera(),clouds);pass.setResolution(.3);pass.setSize(1920,1080);assert.equal(pass.enabled,true);pass.dispose();clouds.dispose();assert.equal(scene.children.length,0);
@@ -33,11 +34,16 @@ test('volumetric bounds stay aligned with rotated cloud layouts and cull without
 test('cloud field changes by visit and varies silhouettes, heights, orientation and island cover',()=>{
  const a=createCloudLayout(713),b=createCloudLayout(819);
  assert.deepEqual(a,createCloudLayout(713));assert.notDeepEqual(a,b);
- assert.equal(a.filter(c=>!c.island).length,44);
+ assert.equal(a.filter(c=>!c.island&&c.layer!=='cove-mist').length,34);
  assert.equal(new Set(a.map(c=>c.shape)).size,6);
+ assert.ok(a.some(c=>c.shape==='humilis'&&c.height<c.width*.4));
+ const clouds=a.filter(c=>c.layer!=='cove-mist');
+ for(const [i,cell] of clouds.entries())for(const other of clouds.slice(i+1)){
+  assert.ok(Math.hypot(cell.x-other.x,cell.z-other.z)>cell.width+other.width);
+ }
  assert.ok(Math.max(...a.map(c=>c.y))-Math.min(...a.map(c=>c.y))>1800);
  assert.ok(new Set(a.map(c=>Math.round(c.width))).size>30);
- assert.ok(a.every(c=>c.y-c.height*1.1>0));
+ assert.ok(a.every(c=>c.layer==='cove-mist'||c.y-c.height*1.1>0));
  const counts=Array.from({length:20},(_,i)=>createCloudLayout(i+1).filter(c=>c.island).length);assert.ok(new Set(counts).size>3);
 });
 
@@ -76,3 +82,22 @@ test('cloud illumination distinguishes golden dawn and orange dusk and remains c
  clouds.dispose();
 });
 
+
+test('weather changes fade both cloud fields and keep a single persistent cove mist bank',()=>{
+ const clouds=new CloudVolumes(new T.Scene(),713);
+ clouds.update(0,0,.4,'cloudy');
+ const outgoing=clouds.layout.find(c=>c.layer==='cruising'&&(c.opacity??0)>.98)!;
+ const sample=()=>outgoing.opacity??0;
+ const before=sample();
+ clouds.update(.9,0,.4,'sunny');
+ assert.ok(sample()>0&&sample()<before);
+ assert.equal(clouds.layout.filter(c=>c.layer==='cove-mist').length,6);
+ assert.ok(clouds.layout.some(c=>c.layer!=='cove-mist'&&c!==outgoing&&(c.opacity??0)>0&&(c.opacity??0)<.1));
+ const first=sample();
+ clouds.update(.9,0,.4,'cloudy');
+ assert.ok(sample()>first);
+ for(let i=0;i<10;i++)clouds.update(1,0,.4,'sunny');
+ assert.ok(!clouds.layout.includes(outgoing));
+ assert.equal(clouds.layout.length,createCloudLayout(713,'sunny').length);
+ clouds.dispose();
+});

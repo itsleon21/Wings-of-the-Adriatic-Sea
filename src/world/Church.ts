@@ -1,3 +1,4 @@
+import {roomGlass,tintGlass} from './WindowLight.ts';
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {churchSite} from './ChurchSite.ts';
@@ -8,7 +9,7 @@ export class Church{
  constructor(d:IslandDefinition,blockers:T.Box3[]){
   const shore=churchSite(d),x=shore.x,z=shore.z,y=shore.y;this.root.position.set(x,y,z);this.root.rotation.y=Math.atan2(-shore.nx,-shore.nz);this.root.name=`${d.id} / parish church`;
   const parts:T.BufferGeometry[]=[],windowParts:T.BufferGeometry[]=[];
-  const add=(g:T.BufferGeometry,c:number,p:T.Vector3,r=new T.Euler(),glass=false)=>{g.applyMatrix4(new T.Matrix4().compose(p,new T.Quaternion().setFromEuler(r),new T.Vector3(1,1,1)));g.deleteAttribute('uv');const color=new T.Color(c),a=new Float32Array(g.attributes.position.count*3);for(let i=0;i<a.length;i+=3)a.set(color.toArray(),i);g.setAttribute('color',new T.BufferAttribute(a,3));const n=g.index?g.toNonIndexed():g;if(n!==g)g.dispose();(glass?windowParts:parts).push(n);};
+  const add=(g:T.BufferGeometry,c:number,p:T.Vector3,r=new T.Euler(),glass=false)=>{g.applyMatrix4(new T.Matrix4().compose(p,new T.Quaternion().setFromEuler(r),new T.Vector3(1,1,1)));g.deleteAttribute('uv');const color=new T.Color(c),a=new Float32Array(g.attributes.position.count*3);for(let i=0;i<a.length;i+=3)a.set(color.toArray(),i);g.setAttribute('color',new T.BufferAttribute(a,3));if(glass)tintGlass(g,d.seed+p.x*71+p.z*13);const n=g.index?g.toNonIndexed():g;if(n!==g)g.dispose();(glass?windowParts:parts).push(n);};
   const box=(x:number,y:number,z:number,w:number,h:number,l:number,c:number)=>add(new T.BoxGeometry(w,h,l),c,new T.Vector3(x,y,z));
   const foundation=y-shore.low+1;box(0,-foundation/2,0,40,foundation,38,0xb7a88b);
   const arch=(x:number,y:number,z:number,r:number,h:number,c:number,glass=false)=>{const s=new T.Shape();s.moveTo(-r,0);s.lineTo(r,0);s.lineTo(r,h);s.absarc(0,h,r,0,Math.PI,false);s.lineTo(-r,0);const g=new T.ExtrudeGeometry(s,{depth:glass?.12:.25,bevelEnabled:false,curveSegments:14});add(g,c,new T.Vector3(x,y,z),new T.Euler(),glass);};
@@ -46,7 +47,7 @@ export class Church{
   box(tx,28.65,-3.77,.1,1.4,.08,0x484c42);add(new T.BoxGeometry(.1,1.05,.08),0x484c42,new T.Vector3(tx+.3,28.25,-3.76),new T.Euler(0,0,-.8));
   const merge=(array:T.BufferGeometry[])=>{const g=mergeGeometries(array,false)!;array.forEach(g=>g.dispose());return g;};
   const building=new T.Mesh(merge(parts),new T.MeshStandardMaterial({vertexColors:true,roughness:.87}));building.castShadow=building.receiveShadow=true;building.name='Church / stone nave, tiled roof, rose window and open bell tower';this.root.add(building);
-  this.windows=new T.MeshStandardMaterial({vertexColors:true,roughness:.32,emissive:0xffb65d,emissiveIntensity:0});this.glass=new T.Mesh(merge(windowParts),this.windows);this.root.add(this.glass);
+  this.windows=roomGlass(new T.MeshStandardMaterial({vertexColors:true,roughness:.32}));this.glass=new T.Mesh(merge(windowParts),this.windows);this.root.add(this.glass);
   const ex=34,ez=34;blockers.push(new T.Box3(new T.Vector3(x-ex,y-1,z-ez),new T.Vector3(x+ex,y+51,z+ez)));
  }
  setNightness(n:number){this.windows.emissiveIntensity=n*1.7;}

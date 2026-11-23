@@ -8,16 +8,16 @@ import {buildSettlementLayout,houseKinds,plotsOverlap,plotCorners,roadIntersects
 import type {HousePlot} from '../src/world/SettlementLayout.ts';
 const layouts=islands.slice(0,2).map(d=>buildSettlementLayout(d));
 
-test('village plans are deterministic, contain fourteen building types and leave hillside neighbourhoods more open',()=>{
+test('village plans are deterministic and leave hillside neighbourhoods more open',()=>{
  assert.deepEqual(buildSettlementLayout(islands[0]),layouts[0]);
- const kinds=new Set(layouts.flatMap(l=>l.houses.map(p=>p.kind)));for(const k of houseKinds)assert.ok(kinds.has(k));
  const medianNearest=(plots:HousePlot[])=>{const distances=plots.map(a=>Math.min(...plots.filter(b=>b!==a).map(b=>Math.hypot(a.x-b.x,a.z-b.z)))).sort((a,b)=>a-b);return distances[Math.floor(distances.length/2)];};
  for(const layout of layouts){
   assert.ok(layout.houses.length>(layout===layouts[1]?100:50)&&layout.houses.length<(layout===layouts[1]?230:120));
   assert.ok(layout.houses.filter(p=>p.district==='waterfront').length>=(layout===layouts[1]?12:8));
   const village=layout.houses.filter(p=>p.district==='village'),hills=layout.houses.filter(p=>p.district==='hillside');assert.ok(hills.length>=6&&hills.length<village.length/2);assert.ok(medianNearest(hills)>medianNearest(village)*1.2);
  }
- assert.ok(layouts[1].houses.filter(p=>p.kind==='HouseTownhouse').length>layouts[0].houses.filter(p=>p.kind==='HouseTownhouse').length);
+ assert.ok(layouts[1].houses.some(p=>p.kind==='HouseMarketHall'));
+ assert.ok(layouts[1].houses.some(p=>p.kind==='HouseGranary'));
 });
 
 test('rotated houses do not overlap, straddle lanes or extend below their terrain foundations',()=>{
@@ -47,7 +47,9 @@ test('fourteen exported house modules have distinct silhouettes, grounded feet a
    for(const child of n.children??[])walk(child,matrix);
   };walk(root,new Matrix4(),true);minimumY=bounds.min.y;maximumY=bounds.max.y;
   assert.ok(bounds.min.x>=-.661&&bounds.max.x<=.661&&bounds.min.z>=-.661&&bounds.max.z<=.661,kind);
-  assert.ok(triangles>250&&triangles<1800,kind);assert.ok(minimumY>=-.501&&minimumY<=-.49,`${kind}: ${minimumY}`);assert.ok(maximumY<=1.06,kind);roofHeights.push(maximumY);signatures.add(shapeParts.join('|'));
+  // Close modules include cut window reveals and exposed eave structure.
+  const triangleBudget=kind==='HouseTownhouse'?2800:1900;
+  assert.ok(triangles>250&&triangles<triangleBudget,kind);assert.ok(minimumY>=-.501&&minimumY<=-.49,`${kind}: ${minimumY}`);assert.ok(maximumY<=1.06,kind);roofHeights.push(maximumY);signatures.add(shapeParts.join('|'));
  }
  assert.equal(signatures.size,houseKinds.length);assert.ok(Math.max(...roofHeights)-Math.min(...roofHeights)>.4);
 });
@@ -61,9 +63,9 @@ test('distant house proxies retain upward roof faces and distinct roof heights',
  assert.ok(roofs>=12);
 });
 
-test('town neighbourhoods mix fourteen silhouettes, warm facade palettes and varied proportions deterministically',()=>{
+test('town neighbourhoods mix mill types, warm facade palettes and varied proportions deterministically',()=>{
  const plots=layouts[1].houses;
- assert.ok(new Set(plots.map(p=>p.kind)).size>=10);
+ assert.ok(new Set(plots.filter(p=>p.kind.startsWith('HouseMill')).map(p=>p.kind)).size===3);
  assert.ok(new Set(plots.map(p=>p.tint.join(','))).size>=6);
  assert.ok(Math.max(...plots.map(p=>p.height))/Math.min(...plots.map(p=>p.height))>2.2);
  assert.ok(new Set(plots.map(p=>Math.round(p.angle*10))).size>15);

@@ -1,12 +1,13 @@
 import { Vector3 } from 'three';
-import {allLandforms,harborRunway} from '../world/WorldConfig.ts';
+import {allLandforms,harborRunway,onHarborRunway} from '../world/WorldConfig.ts';
 export interface Checkpoint { name:string; position:Vector3; normal:Vector3; radius:number; islandId?:string }
 /** A full archipelago sightseeing loop, excluding offshore reefs. */
 export const tourIslandOrder=['pine','cove','lighthouse','town','hotel','coral'] as const;
+const exit=onHarborRunway(700),finish=onHarborRunway(300);
 const scenicPoints:Omit<Checkpoint,'normal'>[]=[
- {name:'港湾出口',position:new Vector3(harborRunway.x+700,140,harborRunway.z),radius:180},
+ {name:'港湾出口',position:new Vector3(exit.x,140,exit.z),radius:180},
  ...tourIslandOrder.map(id=>{const d=allLandforms.find(d=>d.id===id)!;return{name:d.name,position:new Vector3(d.x,Math.max(180,d.height+140),d.z),radius:220,islandId:id};}),
- {name:'港口终点',position:new Vector3(harborRunway.x+300,210,harborRunway.z),radius:180,islandId:'harbor'},
+ {name:'港口终点',position:new Vector3(finish.x,210,finish.z),radius:180,islandId:'harbor'},
 ];
 export const route:Checkpoint[]=scenicPoints.map((point,i)=>{
  const previous=i?scenicPoints[i-1].position:new Vector3(harborRunway.x,point.position.y,harborRunway.z);
