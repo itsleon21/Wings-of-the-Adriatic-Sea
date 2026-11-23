@@ -11,6 +11,7 @@ import './pilot-guide.css';
 import './home.css';
 import './instruments.css';
 import {Game} from './game/Game';
+import {resetJournalRecordsForRelease} from './journey/JournalRecords';
 const app=document.querySelector<HTMLElement>('#app')!;
 try{
  const resetUrl=new URL(location.href),resetToken=resetUrl.searchParams.get('resetTasks');
@@ -24,6 +25,7 @@ try{
    localStorage.setItem(releaseKey,'1');
    if(resetToken)localStorage.setItem('adriatic.tasks.lastReset',resetToken);
   }
+  resetJournalRecordsForRelease(localStorage);
  }catch{/* Storage may be disabled; the game can still start with a fresh journal. */}
  if(resetToken){resetUrl.searchParams.delete('resetTasks');history.replaceState(null,'',resetUrl);}
  const game=new Game(app);const stopLanguage=installLanguage(app);window.addEventListener('pagehide',()=>{stopLanguage();game.dispose();},{once:true});}

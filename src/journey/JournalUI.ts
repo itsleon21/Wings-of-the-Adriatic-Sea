@@ -35,10 +35,11 @@ export class JournalUI{
  for(const island of islands){const row=document.createElement('article'),h=document.createElement('h3'),p=document.createElement('p');h.textContent=island.name;p.textContent=islandStories[island.id].role+' · '+(d.docked.includes(island.id)?'已获靠泊纪念':d.visited.includes(island.id)?'已发现':'未到访');row.append(h,p);list.append(row);}
  const choices=this.dialog.querySelector('.livery-choices')!;choices.replaceChildren();for(const [id,name,rule] of [['original','原始涂装','默认'],['azure','海蓝纪念','发现三座岛'],['ivory','象牙白纪念','完成两项委托或首次完赛']]){const b=document.createElement('button');b.textContent=name+' · '+(this.journal.unlocked(id)?d.livery===id?'使用中':'已解锁':rule);b.disabled=!this.journal.unlocked(id);b.setAttribute('aria-pressed',String(d.livery===id));b.onclick=()=>{this.journal.selectLivery(id);this.onLivery();this.refresh();};choices.append(b);}
  const entries=this.dialog.querySelector('.journal-entries')!;entries.replaceChildren();
- if(d.completed.includes(airPirateJobId)){
+ const hasPirateRecord=(d.recordCommissions??d.completed).includes(airPirateJobId);
+ if(hasPirateRecord){
   const letter=document.createElement('li');letter.textContent='《消失的空贼》 · '+airPirateLetter;
   const route=document.createElement('li');route.textContent='旧航线 · 隐秘海湾营地 → 珊瑚群岛篝火 → 蓝帆船 → 海蚀拱门 → 风车小镇档案馆';entries.append(letter,route);
- }for(const text of [...d.entries].reverse()){const li=document.createElement('li');li.textContent=text;entries.append(li);}if(!d.entries.length)entries.textContent='第一段航程，从这里开始。';}
+ }for(const text of [...d.entries].reverse()){const li=document.createElement('li');li.textContent=text;entries.append(li);}if(!d.entries.length&&!hasPirateRecord)entries.textContent='第一段航程，从这里开始。';}
  private renderTasks(){
   this.viewer?.dispose();this.viewer=undefined;
   if(!this.taskSection&&!this.journal.data.completed.includes('return-post'))this.taskSection='first';
