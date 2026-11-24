@@ -41,7 +41,7 @@ export class HUD {
   <div class="pause-layer" id="pause-layer" hidden><div class="pause-card"><div class="eyebrow">TAKE YOUR TIME</div><h2 id="pause-title">风景会等你。</h2><p id="pause-description">飞行与挑战计时已暂停。</p><button class="primary" id="resume">继续飞行 <span>→</span></button><button class="primary" id="recover" hidden>重飞 · 保持原航向 ↗</button><button class="text-button" id="reset">返回港口 <kbd>R</kbd></button><a class="text-button pause-hangar" href="./aircraft.html?aircraft=${aircraft.id}">返回机库换机 ↗</a></div></div>
   <div class="toast" id="toast" role="status"></div><div class="flight-notice" id="flight-notice" role="status"></div>`;
   const commandbar=document.createElement('nav');commandbar.className='cockpit-commandbar';commandbar.setAttribute('aria-label','飞行操作与环境');const notices=document.createElement('div');notices.className='flight-notices';
-  notices.append(app.querySelector('#landing-assist')!,app.querySelector('#flight-notice')!);
+  notices.append(app.querySelector('#flight-notice')!);
   commandbar.append(app.querySelector('.deck-shortcuts')!,app.querySelector('.top-actions')!,notices);app.append(commandbar);
   for(const element of app.querySelectorAll<HTMLElement>('[id]'))this.refs.set(element.id,element);
   const walker=document.createTreeWalker(this.get('guide'),NodeFilter.SHOW_TEXT);let textNode:Node|null;while((textNode=walker.nextNode()))if(textNode.parentElement?.closest('p,.key-grid kbd')&&/\b[WS]\b/.test(textNode.textContent??''))this.controlTexts.push({node:textNode as Text,original:textNode.textContent!});
